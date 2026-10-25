@@ -1,11 +1,11 @@
 local Players=game:GetService("Players")local ReplicatedStorage=game:GetService("ReplicatedStorage")local UserInputService=game:GetService("UserInputService")local RunService=game:GetService("RunService")local TweenService=game:GetService("TweenService")local CoreGui=game:GetService("CoreGui")local player=Players.LocalPlayer
-local autoFlagActive,autoWalkActive,espActive=false,false,false
+local autoWalkActive,espActive=false,false
 local customWalkSpeed,customJumpPower,infiniteJump,flying,flySpeed=25,50,false,false,50
 local flyGyro,flyVelocity
 local espSafeColor,espBombColor=Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,0)
 local espUncertainLow,espUncertainMed,espUncertainHigh=Color3.fromRGB(255,215,0),Color3.fromRGB(255,165,0),Color3.fromRGB(220,20,60)
 local grid,W,H,xToCol,zToRow,localFlags,deducedBombs={},0,0,{},{},{},{}
-local AutoWalkToggle,AutoFlagToggle,EspToggle,FlyToggle
+local AutoWalkToggle,EspToggle,FlyToggle
 local espFolder=workspace:FindFirstChild("BotESPFolder")or Instance.new("Folder",workspace)
 espFolder.Name="BotESPFolder"
 local function notify(t,x)pcall(function()game:GetService("StarterGui"):SetCore("SendNotification",{Title=t,Text=x,Duration=3})end)end
@@ -300,24 +300,21 @@ if not autoWalkActive then break end
 walkTo(part)
 end
 end
-local function flag(part)
--- Безопасный клик (не наступаем на клетку)
-local camera = workspace.CurrentCamera
-local viewportPoint = camera:WorldToViewportPoint(part.Position)
-if viewportPoint.Z > 0 then
-local m = player:GetMouse()
-m.Target = part
-m.Hit = part
--- Устанавливаем флаг без наступания
-localFlags[part] = true
-deducedBombs[part] = true
-end
-end
-local function botLoop()
-while autoWalkActive or autoFlagActive do
+local function autoWalkLoop()
+while autoWalkActive do
 local gameRunningVal=ReplicatedStorage:FindFirstChild("Info")and ReplicatedStorage.Info:FindFirstChild("GameRunning")and ReplicatedStorage.Info.GameRunning.Value
 if not gameRunningVal then
+print("Auto Walk: Waiting for game to start...")
+localFlags={}
+deducedBombs={}
+clearESP()
+while not(ReplicatedStorage:FindFirstChild("Info")and ReplicatedStorage.Info:FindFirstChild("GameRunning")and ReplicatedStorage.Info.GameRunning.Value)and autoWalkActive do
 task.wait(1)
+end
+if autoWalkActive then
+task.wait(2)
+initGrid()
+end
 continue
 end
 if not checkGridValid()then
@@ -328,49 +325,19 @@ if not success then
 task.wait(0.05)
 continue
 end
-local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-if not root then task.wait(0.5) continue end
-
-if autoFlagActive then
-local bombToFlag = nil
-local minBombDist = math.huge
-for part in pairs(deducedBombs) do
-if part and part.Parent and not hasServerFlag(part) then
-local d = (part.Position - root.Position).Magnitude
-if d < 100 and d < minBombDist then
-minBombDist = d
-bombToFlag = part
-end
-end
-end
-if bombToFlag then
-local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
-if hum then
--- Бот подходит на 3 стада к мине (чтобы не наступить)
-local targetPos = Vector3.new(bombToFlag.Position.X, root.Position.Y, bombToFlag.Position.Z)
-local dir = (root.Position - targetPos).Unit
-local safePos = targetPos + dir * 3
-hum.WalkSpeed = customWalkSpeed
-hum:MoveTo(safePos)
-local t = os.clock()
-while (root.Position - safePos).Magnitude > 1.5 and os.clock() - t < 2 do
-task.wait()
-hum:MoveTo(safePos)
-end
-task.wait(0.1)
-flag(bombToFlag) -- ставим флаг с безопасного расстояния
-task.wait(0.2)
-end
+local pCol,pRow=getCurrentPlayerGrid()
+if not pCol or not pRow then
+task.wait(0.5)
 continue
 end
-end
-
-if autoWalkActive then
-local pCol,pRow=getCurrentPlayerGrid()
-if not pCol or not pRow then task.wait(0.5) continue end
 local openedCount=0
-for col=1,W do for row=1,H do if grid[col][row].isOpened then openedCount=openedCount+1 end end end
-
+for col=1,W do
+for row=1,H do
+if grid[col][row].isOpened then
+openedCount=openedCount+1
+end
+end
+end
 if openedCount==0 then
 local midCol=math.floor(W/2)+1
 local midRow=math.floor(H/2)+1
@@ -382,7 +349,6 @@ task.wait(0.5)
 end
 continue
 end
-
 local targetCell=nil
 local bestPath=nil
 local minPathLen=math.huge
@@ -394,7 +360,6 @@ targetCell=cell
 bestPath=path
 end
 end
-
 if bestPath and targetCell then
 print("Walking to safe tile: ("..targetCell.col..", "..targetCell.row..")")
 walkPath(bestPath)
@@ -419,8 +384,13 @@ end
 end
 end
 if bestGuessCell then
+print("Stuck! Optimal guess ("..string.format("%.0f%%",minProb*100).." bomb chance) at ("..bestGuessCell.col..", "..bestGuessCell.row..")")
 local path=findPath(pCol,pRow,bestGuessCell.col,bestGuessCell.row)
-if path then walkPath(path) else walkTo(bestGuessCell.part) end
+if path then
+walkPath(path)
+else
+walkTo(bestGuessCell.part)
+end
 local startWait=os.clock()
 while not bestGuessCell.part:FindFirstChild("NumberGui")and os.clock()-startWait<1.5 and autoWalkActive do
 task.wait(0.05)
@@ -429,36 +399,42 @@ else
 local candidates=getLocalGuessCandidates(pCol,pRow)
 if #candidates>0 then
 local guessCell=candidates[math.random(1,#candidates)]
+print("No probabilities. Random guess at ("..guessCell.col..", "..guessCell.row..")")
 local path=findPath(pCol,pRow,guessCell.col,guessCell.row)
-if path then walkPath(path) else walkTo(guessCell.part) end
+if path then
+walkPath(path)
+else
+walkTo(guessCell.part)
+end
 local startWait=os.clock()
 while not guessCell.part:FindFirstChild("NumberGui")and os.clock()-startWait<1.5 and autoWalkActive do
 task.wait(0.05)
 end
 else
-notify("FIMO HUB","No candidates found!")
+print("No reachable/local candidates found! Stopping Auto Walk.")
 autoWalkActive=false
-if AutoWalkToggle then AutoWalkToggle:UpdateState(false) end
+if AutoWalkToggle then
+AutoWalkToggle:UpdateState(false)
 end
+notify("FIMO HUB","Auto Walk stopped (no candidates).")
 end
 end
 end
 task.wait(0.05)
 end
 end
-
 local function espLoop()
 while espActive do
-if not autoWalkActive and not autoFlagActive then
+if not autoWalkActive then
 local gameRunningVal=ReplicatedStorage:FindFirstChild("Info")and ReplicatedStorage.Info:FindFirstChild("GameRunning")and ReplicatedStorage.Info.GameRunning.Value
 if not gameRunningVal then
 localFlags={}
 deducedBombs={}
 clearESP()
-while not(ReplicatedStorage:FindFirstChild("Info")and ReplicatedStorage.Info:FindFirstChild("GameRunning")and ReplicatedStorage.Info.GameRunning.Value)and espActive and not autoWalkActive and not autoFlagActive do
+while not(ReplicatedStorage:FindFirstChild("Info")and ReplicatedStorage.Info:FindFirstChild("GameRunning")and ReplicatedStorage.Info.GameRunning.Value)and espActive and not autoWalkActive do
 task.wait(1)
 end
-if espActive and not autoWalkActive and not autoFlagActive then
+if espActive and not autoWalkActive then
 task.wait(2)
 initGrid()
 end
@@ -592,25 +568,13 @@ autoWalkActive=val
 if autoWalkActive then
 initGrid()
 notify("Auto Walk","Auto Walk toggled ON")
-task.spawn(botLoop)
+task.spawn(autoWalkLoop)
 else
 notify("Auto Walk","Auto Walk toggled OFF")
 end
 end
-local function setAutoFlag(val)
-autoFlagActive=val
-if autoFlagActive then
-initGrid()
-notify("Auto Flag","Auto Flag toggled ON")
-task.spawn(botLoop)
-else
-notify("Auto Flag","Auto Flag toggled OFF")
-end
-end
 AutoWalkToggle=BotTab:CreateToggle({Name="Auto Walk",Description="Auto walks and steps/clicks safe or optimal guess tiles.",CurrentValue=false,Callback=setAutoWalk},"AutoWalk")
 BotTab:CreateBind({Name="Auto Walk Keybind",Description="Key to toggle Auto Walk",CurrentBind="L",HoldToInteract=false,Callback=function()local newVal=not AutoWalkToggle.CurrentValue AutoWalkToggle:UpdateState(newVal)setAutoWalk(newVal)end},"AutoWalkBind")
-AutoFlagToggle=BotTab:CreateToggle({Name="Auto Flag",Description="Automatically places flags on deduced bombs.",CurrentValue=false,Callback=setAutoFlag},"AutoFlag")
-BotTab:CreateBind({Name="Auto Flag Keybind",Description="Key to toggle Auto Flag",CurrentBind="NONE",HoldToInteract=false,Callback=function()local newVal=not AutoFlagToggle.CurrentValue AutoFlagToggle:UpdateState(newVal)setAutoFlag(newVal)end},"AutoFlagBind")
 local EspTab=Window:CreateTab({Name="ESP",Icon="visibility",ImageSource="Material",ShowTitle=true})
 local function setEspActive(val)
 espActive=val
