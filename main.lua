@@ -24,48 +24,23 @@ local Window = Luna:CreateWindow({
 })
 
 Window.Bind = Enum.KeyCode.K
-
-Window:CreateHomeTab({ SupportedExecutors = {"Wave","Delta","Codex","Hydrogen","Solara","Macsploit","Real"}, DiscordInvite = "fimozikroot", Icon = 1 })
-
--- Замена кнопки Discord на Telegram
-task.spawn(function()
-    task.wait(1.5)
-    local mainUI
-    pcall(function() mainUI = game:GetService("CoreGui"):FindFirstChild("Luna UI") end)
-    if not mainUI then pcall(function() mainUI = gethui():FindFirstChild("Luna UI") end) end
-    if mainUI and mainUI:FindFirstChild("SmartWindow") then
-        local home = mainUI.SmartWindow:FindFirstChild("Elements")
-        if home and home:FindFirstChild("Home") then
-            local dash = home.Home:FindFirstChild("detailsholder")
-            if dash and dash:FindFirstChild("dashboard") then
-                local discordBtn = dash.dashboard:FindFirstChild("Discord")
-                if discordBtn then
-                    pcall(function()
-                        discordBtn.Title.Text = "Telegram"
-                        discordBtn.Subtitle.Text = "t.me/fimozikroot"
-                        for _, c in pairs(getconnections(discordBtn.Interact.MouseButton1Click)) do c:Disconnect() end
-                        discordBtn.Interact.MouseButton1Click:Connect(function()
-                            setclipboard("https://t.me/fimozikroot")
-                            Luna:Notification({Title="Telegram", Content="Ссылка скопирована: t.me/fimozikroot", Icon="copy", ImageSource="Material"})
-                        end)
-                    end)
-                end
-            end
-        end
-    end
-end)
+Window:CreateHomeTab({ SupportedExecutors = {"Xeno","Wave","Delta","Codex","Hydrogen","Solara","Macsploit","Real"}, DiscordInvite = "fimozikroot", Icon = 1 })
 
 local SelectTab = Window:CreateTab({ Name = "Select Game", Icon = "games", ImageSource = "Material", ShowTitle = true })
-
 local BASE = "https://raw.githubusercontent.com/maksimovemil324-ops/fimozikrootmaingui/refs/heads/main/"
 
 local function LoadMode(mode)
     local url = BASE .. mode .. ".lua"
+    Luna:Notification({Title = "Loading", Content = "Загрузка " .. mode .. "...", Icon = "download", ImageSource = "Material"})
     local ok, err = pcall(function()
-        loadstring(game:HttpGet(url))()
+        local source = game:HttpGet(url)
+        local func, loadErr = loadstring(source)
+        if not func then error("Ошибка синтаксиса: " .. tostring(loadErr)) end
+        func()
     end)
     if not ok then
-        Luna:Notification({Title = "Error", Content = "Failed to load " .. mode .. ": " .. tostring(err), Icon = "error", ImageSource = "Material"})
+        Luna:Notification({Title = "Error", Content = "Failed to load " .. mode .. ": " .. tostring(err), Icon = "error", ImageSource = "Material", Duration = 10})
+        warn("FIMO HUB Error: " .. tostring(err))
     end
 end
 
@@ -78,39 +53,19 @@ SelectTab:CreateButton({ Name = "Minesweeper", Description = "Auto Solver & ESP"
 -- Мобильная кнопка
 local function getLunaGUI()
     local parent = (gethui and gethui()) or CoreGui
-    for _, obj in ipairs(parent:GetChildren()) do
-        if obj.Name == "Luna UI" then return obj, parent end
-    end
-    for _, obj in ipairs(CoreGui:GetChildren()) do
-        if obj.Name == "Luna UI" then return obj, CoreGui end
-    end
-    return nil, parent
+    for _, obj in ipairs(parent:GetChildren()) do if obj.Name == "Luna UI" then return obj end end
+    for _, obj in ipairs(CoreGui:GetChildren()) do if obj.Name == "Luna UI" then return obj end end
+    return nil
 end
 
-local function showMenu()
+local function toggleMenu()
     local gui = getLunaGUI()
     if not gui then return end
     local smart = gui:FindFirstChild("SmartWindow")
-    if not smart then return end
-    smart.Visible = true
-    smart.Size = UDim2.fromOffset(675, 424)
-    smart.BackgroundTransparency = 0.2
-    local els = smart:FindFirstChild("Elements")
-    if els then
-        els.Visible = true
-        els.BackgroundTransparency = 0.08
+    if smart then 
+        smart.Visible = not smart.Visible 
+        Window.State = smart.Visible
     end
-    local nav = smart:FindFirstChild("Navigation")
-    if nav then nav.Visible = true end
-    Window.State = true
-end
-
-local function hideMenu()
-    local gui = getLunaGUI()
-    if not gui then return end
-    local smart = gui:FindFirstChild("SmartWindow")
-    if smart then smart.Visible = false end
-    Window.State = false
 end
 
 if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
@@ -128,36 +83,9 @@ if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
     btn.BorderSizePixel = 0
     btn.ZIndex = 999999
     btn.AutoButtonColor = false
-
+    
     local c = Instance.new("UICorner", btn)
     c.CornerRadius = UDim.new(0, 14)
-
-    local s = Instance.new("UIStroke", btn)
-    s.Color = Color3.new(1,1,1)
-    s.Thickness = 2
-    s.Transparency = 0.5
-
-    local dragging, dragStart, startPos
-    btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            dragStart = input.Position
-            startPos = btn.Position
-        end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.Touch then
-            local delta = input.Position - dragStart
-            btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    btn.MouseButton1Click:Connect(function()
-        if Window.State then hideMenu() else showMenu() end
-    end)
+    
+    btn.MouseButton1Click:Connect(toggleMenu)
 end
