@@ -301,14 +301,12 @@ walkTo(part)
 end
 end
 local function flag(part)
--- Симуляция клика мышкой/пальцем для установки флага
 local camera = workspace.CurrentCamera
 local viewportPoint = camera:WorldToViewportPoint(part.Position)
 if viewportPoint.Z > 0 then
 local m = player:GetMouse()
 m.Target = part
 m.Hit = part
--- На телефоне тоже сработает, так как мы меняем Target
 end
 localFlags[part] = true
 deducedBombs[part] = true
@@ -353,7 +351,6 @@ end
 local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 if not root then task.wait(0.5) continue end
 
--- 1. СНАЧАЛА СТАВИМ ФЛАГИ (если включено)
 if autoFlagActive then
 local bombToFlag = nil
 local minBombDist = math.huge
@@ -367,7 +364,6 @@ end
 end
 end
 if bombToFlag then
--- Идем к бомбе, чтобы поставить флаг (игра требует близкого расстояния)
 local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 if hum then
 hum.WalkSpeed = customWalkSpeed
@@ -381,11 +377,10 @@ task.wait(0.1)
 flag(bombToFlag)
 task.wait(0.2)
 end
-continue -- После флага начинаем цикл заново
+continue
 end
 end
 
--- 2. ЕСЛИ ФЛАГИ НЕ НУЖНЫ, ИДЕМ ОТКРЫВАТЬ СИНИЕ (безопасные)
 if autoWalkActive then
 local pCol,pRow=getCurrentPlayerGrid()
 if not pCol or not pRow then task.wait(0.5) continue end
@@ -424,7 +419,6 @@ while not targetCell.part:FindFirstChild("NumberGui")and os.clock()-startWait<1.
 task.wait(0.05)
 end
 else
--- Если безопасных нет, ищем по вероятностям или рандомно
 local bestGuessCell=nil
 local minProb=math.huge
 for part,P in pairs(borderProbabilities)do
