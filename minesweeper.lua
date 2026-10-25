@@ -301,36 +301,16 @@ walkTo(part)
 end
 end
 local function flag(part)
+-- Безопасный клик (не наступаем на клетку)
 local camera = workspace.CurrentCamera
 local viewportPoint = camera:WorldToViewportPoint(part.Position)
 if viewportPoint.Z > 0 then
 local m = player:GetMouse()
 m.Target = part
 m.Hit = part
-end
+-- Устанавливаем флаг без наступания
 localFlags[part] = true
 deducedBombs[part] = true
-end
-local function waitForFlags()
-if not autoFlagActive then return end
-local root=player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-if not root then return end
-local startTime=os.clock()
-while os.clock()-startTime<0.5 do
-local allFlagged=true
-for part in pairs(deducedBombs)do
-if part and part.Parent then
-local dist=(part.Position-root.Position).Magnitude
-if dist<100 then
-if not hasServerFlag(part)then
-allFlagged=false
-flag(part)
-end
-end
-end
-end
-if allFlagged then break end
-task.wait(0.05)
 end
 end
 local function botLoop()
@@ -366,15 +346,19 @@ end
 if bombToFlag then
 local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
 if hum then
+-- Бот подходит на 3 стада к мине (чтобы не наступить)
+local targetPos = Vector3.new(bombToFlag.Position.X, root.Position.Y, bombToFlag.Position.Z)
+local dir = (root.Position - targetPos).Unit
+local safePos = targetPos + dir * 3
 hum.WalkSpeed = customWalkSpeed
-hum:MoveTo(Vector3.new(bombToFlag.Position.X, root.Position.Y, bombToFlag.Position.Z))
+hum:MoveTo(safePos)
 local t = os.clock()
-while (root.Position - Vector3.new(bombToFlag.Position.X, root.Position.Y, bombToFlag.Position.Z)).Magnitude > 1.5 and os.clock() - t < 2 do
+while (root.Position - safePos).Magnitude > 1.5 and os.clock() - t < 2 do
 task.wait()
-hum:MoveTo(Vector3.new(bombToFlag.Position.X, root.Position.Y, bombToFlag.Position.Z))
+hum:MoveTo(safePos)
 end
 task.wait(0.1)
-flag(bombToFlag)
+flag(bombToFlag) -- ставим флаг с безопасного расстояния
 task.wait(0.2)
 end
 continue
