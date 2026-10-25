@@ -9,7 +9,7 @@ local AutoWalkToggle,AutoFlagToggle,EspToggle,FlyToggle
 local espFolder=workspace:FindFirstChild("BotESPFolder")or Instance.new("Folder",workspace)
 espFolder.Name="BotESPFolder"
 local function notify(t,x)pcall(function()game:GetService("StarterGui"):SetCore("SendNotification",{Title=t,Text=x,Duration=3})end)end
-local function getSecretKey()return "BypassKey_1337" end
+local function getSecretKey()local m=player:GetMouse()local c=getconnections(m.Button1Down)for _,v in ipairs(c)do local f=v.Function if f then local ok,u=pcall(debug.getupvalues,f)if ok then for k,val in pairs(u)do if type(val)=="string"and(tonumber(val)~=nil or #val>10)then return val elseif type(val)=="number"then return tostring(val)end end end end end end
 local function hasServerFlag(p)if not p then return false end for _,c in ipairs(p:GetChildren())do if c:IsA("Model")then return true end end return false end
 local function checkFlagged(p)return localFlags[p]==true or deducedBombs[p]==true end
 local function checkBlocked(p)return localFlags[p]==true or deducedBombs[p]==true or hasServerFlag(p)end
@@ -21,8 +21,7 @@ local function scanBoard()local state={}for col=1,W do state[col]={}for row=1,H 
 local function getCurrentPlayerGrid()local char=player.Character local root=char and char:FindFirstChild("HumanoidRootPart")if not root then return nil,nil end local nearestCol,nearestRow=nil,nil local minDist=math.huge for col=1,W do for row=1,H do local cell=grid[col][row]if cell.part then local dist=(cell.part.Position-root.Position).Magnitude if dist<minDist then minDist=dist nearestCol=col nearestRow=row end end end end return nearestCol,nearestRow end
 local function findPath(startCol,startRow,targetCol,targetRow)local queue={{startCol,startRow,{}}}local visited={}visited[startCol.."_"..startRow]=true while #queue>0 do local curr=table.remove(queue,1)local c,r,path=curr[1],curr[2],curr[3]if c==targetCol and r==targetRow then return path end local dirs={{1,0},{-1,0},{0,1},{0,-1}}for _,dir in ipairs(dirs)do local nc=c+dir[1]local nr=r+dir[2]local key=nc.."_"..nr if nc>=1 and nc<=W and nr>=1 and nr<=H and not visited[key]then local neighbor=grid[nc][nr]local isFlaggedOnServer=hasServerFlag(neighbor.part)if neighbor.isOpened or isFlaggedOnServer or(nc==targetCol and nr==targetRow)then visited[key]=true local newPath={}for _,p in ipairs(path)do table.insert(newPath,p)end table.insert(newPath,neighbor.part)table.insert(queue,{nc,nr,newPath})end end end end return nil end
 local function getConnectedComponent(startCol,startRow)local queue={{startCol,startRow}}local visited={}visited[startCol.."_"..startRow]=true local component={}while #queue>0 do local curr=table.remove(queue,1)local c,r=curr[1],curr[2]table.insert(component,grid[c][r])local dirs={{1,0},{-1,0},{0,1},{0,-1}}for _,dir in ipairs(dirs)do local nc=c+dir[1]local nr=r+dir[2]local key=nc.."_"..nr if nc>=1 and nc<=W and nr>=1 and nr<=H and not visited[key]then local neighbor=grid[nc][nr]local isFlaggedOnServer=hasServerFlag(neighbor.part)if neighbor.isOpened or isFlaggedOnServer then visited[key]=true table.insert(queue,{nc,nr})end end end end return component end
-local function getLocalGuessCandidates(pCol,pRow)local component=getConnectedComponent(pCol,pRow)local candidates={}local seen={}for _,cell in ipairs(component)do local dirs={{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,1},{1,-1},{-1,-1}}for _,dir in ipairs(dirs)do local nc=cell.col+dir[1]local nr=cell.row+dir[2]if nc>=1 and nc<=W and nr>=1 and nr<=H then local neighbor=grid[nc][nr]if not neighbor.isOpened and not neighbor.isBlocked then local key=nc.."_"..nr if not seen[key]then seen[key]=true table.insert(candidates,neighbor)end end end end end return candidates end
-local function solveEquations(safeTiles,deducedBombs,borderProbabilities)
+local function getLocalGuessCandidates(pCol,pRow)local component=getConnectedComponent(pCol,pRow)local candidates={}local seen={}for _,cell in ipairs(component)do local dirs={{1,0},{-1,0},{0,1},{0,-1},{1,1},{-1,1},{1,-1},{-1,-1}}for _,dir in ipairs(dirs)do local nc=cell.col+dir[1]local nr=cell.row+dir[2]if nc>=1 and nc<=W and nr>=1 and nr<=H then local neighbor=grid[nc][nr]if not neighbor.isOpened and not neighbor.isBlocked then local key=nc.."_"..nr if not seen[key]then seen[key]=true table.insert(candidates,neighbor)end end end end end return candidates end local function solveEquations(safeTiles,deducedBombs,borderProbabilities)
 local clues={}
 local borderMap={}
 local borderList={}
@@ -314,14 +313,10 @@ local allFlagged=true
 for part in pairs(deducedBombs)do
 if part and part.Parent then
 local dist=(part.Position-root.Position).Magnitude
-if dist<100 then
+if dist<25 then
 if not hasServerFlag(part)then
 allFlagged=false
-pcall(function() 
-    if ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("FlagEvents") and ReplicatedStorage.Events.FlagEvents:FindFirstChild("PlaceFlag") then
-        ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true) 
-    end
-end)
+ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true)
 localFlags[part]=true
 end
 end
@@ -354,13 +349,9 @@ if root and key then
 for part in pairs(deducedBombs)do
 if not hasServerFlag(part)then
 local dist=(part.Position-root.Position).Magnitude
-if dist<100 then
+if dist<25 then
 print("Auto Flag: Placed flag at distance "..string.format("%.1f",dist).." studs")
-pcall(function() 
-    if ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("FlagEvents") and ReplicatedStorage.Events.FlagEvents:FindFirstChild("PlaceFlag") then
-        ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true) 
-    end
-end)
+ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true)
 localFlags[part]=true
 end
 end
@@ -622,9 +613,20 @@ local Window=Luna:CreateWindow({
 Name="FIMO HUB | Minesweeper",
 Subtitle="by Fimozikroot | t.me/fimozikroot",
 LogoID="100217590927128",
-LoadingEnabled=false,
+LoadingEnabled=true,
+LoadingTitle="Minesweeper Solver",
+LoadingSubtitle="by Fimozikroot",
 ConfigSettings={RootFolder=nil,ConfigFolder="FimoHub"},
-KeySystem=false,
+KeySystem=true,
+KeySettings={
+Title="FIMO HUB Key",
+Subtitle="Verification",
+Note="Key is: fimozikroot",
+SaveInRoot=false,
+SaveKey=true,
+Key={"fimozikroot"},
+SecondAction={Enabled=false,Type="Link",Parameter=""}
+}
 })
 Window:CreateHomeTab({
 SupportedExecutors={"Wave","Delta","Codex","Hydrogen","Solara","Macsploit","Real"},
