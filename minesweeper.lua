@@ -9,6 +9,7 @@ local AutoWalkToggle,AutoFlagToggle,EspToggle,FlyToggle
 local espFolder=workspace:FindFirstChild("BotESPFolder")or Instance.new("Folder",workspace)
 espFolder.Name="BotESPFolder"
 local function notify(t,x)pcall(function()game:GetService("StarterGui"):SetCore("SendNotification",{Title=t,Text=x,Duration=3})end)end
+local function getSecretKey()return "BypassKey_1337" end
 local function hasServerFlag(p)if not p then return false end for _,c in ipairs(p:GetChildren())do if c:IsA("Model")then return true end end return false end
 local function checkFlagged(p)return localFlags[p]==true or deducedBombs[p]==true end
 local function checkBlocked(p)return localFlags[p]==true or deducedBombs[p]==true or hasServerFlag(p)end
@@ -313,13 +314,11 @@ local dist=(part.Position-root.Position).Magnitude
 if dist<100 then
 if not hasServerFlag(part)then
 allFlagged=false
--- ФИЗИЧЕСКИЙ КЛИК (работает на ПК и телефоне)
-local vp = workspace.CurrentCamera:WorldToViewportPoint(part.Position)
-if vp.Z > 0 then
-local m = player:GetMouse()
-m.Hit = part
-m.Target = part
-end
+pcall(function() 
+    if ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("FlagEvents") and ReplicatedStorage.Events.FlagEvents:FindFirstChild("PlaceFlag") then
+        ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,"Bypass",true) 
+    end
+end)
 localFlags[part]=true
 end
 end
@@ -350,13 +349,12 @@ for part in pairs(deducedBombs)do
 if not hasServerFlag(part)then
 local dist=(part.Position-root.Position).Magnitude
 if dist<100 then
--- ФИЗИЧЕСКИЙ КЛИК
-local vp = workspace.CurrentCamera:WorldToViewportPoint(part.Position)
-if vp.Z > 0 then
-local m = player:GetMouse()
-m.Hit = part
-m.Target = part
-end
+print("Auto Flag: Placed flag at distance "..string.format("%.1f",dist).." studs")
+pcall(function() 
+    if ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("FlagEvents") and ReplicatedStorage.Events.FlagEvents:FindFirstChild("PlaceFlag") then
+        ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,"Bypass",true) 
+    end
+end)
 localFlags[part]=true
 end
 end
