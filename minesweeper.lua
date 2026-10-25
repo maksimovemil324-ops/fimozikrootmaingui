@@ -1,6 +1,6 @@
 local Players=game:GetService("Players")local ReplicatedStorage=game:GetService("ReplicatedStorage")local UserInputService=game:GetService("UserInputService")local RunService=game:GetService("RunService")local TweenService=game:GetService("TweenService")local CoreGui=game:GetService("CoreGui")local player=Players.LocalPlayer
 local autoFlagActive,autoWalkActive,espActive=false,false,false
-local customWalkSpeed,customJumpPower,infiniteJump,flying,flySpeed=16,50,false,false,50
+local customWalkSpeed,customJumpPower,infiniteJump,flying,flySpeed=25,50,false,false,50
 local flyGyro,flyVelocity
 local espSafeColor,espBombColor=Color3.fromRGB(0,0,255),Color3.fromRGB(255,0,0)
 local espUncertainLow,espUncertainMed,espUncertainHigh=Color3.fromRGB(255,215,0),Color3.fromRGB(255,165,0),Color3.fromRGB(220,20,60)
@@ -9,7 +9,7 @@ local AutoWalkToggle,AutoFlagToggle,EspToggle,FlyToggle
 local espFolder=workspace:FindFirstChild("BotESPFolder")or Instance.new("Folder",workspace)
 espFolder.Name="BotESPFolder"
 local function notify(t,x)pcall(function()game:GetService("StarterGui"):SetCore("SendNotification",{Title=t,Text=x,Duration=3})end)end
-local function getSecretKey()local m=player:GetMouse()local c=getconnections(m.Button1Down)for _,v in ipairs(c)do local f=v.Function if f then local ok,u=pcall(debug.getupvalues,f)if ok then for k,val in pairs(u)do if type(val)=="string"and(tonumber(val)~=nil or #val>10)then return val elseif type(val)=="number"then return tostring(val)end end end end end end
+local function getSecretKey()return "BypassKey_1337" end
 local function hasServerFlag(p)if not p then return false end for _,c in ipairs(p:GetChildren())do if c:IsA("Model")then return true end end return false end
 local function checkFlagged(p)return localFlags[p]==true or deducedBombs[p]==true end
 local function checkBlocked(p)return localFlags[p]==true or deducedBombs[p]==true or hasServerFlag(p)end
@@ -287,8 +287,8 @@ hum.WalkSpeed=customWalkSpeed
 local targetPos=Vector3.new(part.Position.X,root.Position.Y,part.Position.Z)
 hum:MoveTo(targetPos)
 local startT=os.clock()
-while(root.Position-targetPos).Magnitude>1.0 and autoWalkActive do
-if os.clock()-startT>3 then
+while(root.Position-targetPos).Magnitude>1.5 and autoWalkActive do
+if os.clock()-startT>2 then
 break
 end
 task.wait()
@@ -313,10 +313,14 @@ local allFlagged=true
 for part in pairs(deducedBombs)do
 if part and part.Parent then
 local dist=(part.Position-root.Position).Magnitude
-if dist<25 then
+if dist<100 then
 if not hasServerFlag(part)then
 allFlagged=false
-ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true)
+pcall(function() 
+    if ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("FlagEvents") and ReplicatedStorage.Events.FlagEvents:FindFirstChild("PlaceFlag") then
+        ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true) 
+    end
+end)
 localFlags[part]=true
 end
 end
@@ -349,9 +353,13 @@ if root and key then
 for part in pairs(deducedBombs)do
 if not hasServerFlag(part)then
 local dist=(part.Position-root.Position).Magnitude
-if dist<25 then
+if dist<100 then
 print("Auto Flag: Placed flag at distance "..string.format("%.1f",dist).." studs")
-ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true)
+pcall(function() 
+    if ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("FlagEvents") and ReplicatedStorage.Events.FlagEvents:FindFirstChild("PlaceFlag") then
+        ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true) 
+    end
+end)
 localFlags[part]=true
 end
 end
@@ -408,16 +416,6 @@ if targetPart then
 walkTo(targetPart)
 task.wait(0.5)
 end
-continue
-end
-local key=getSecretKey()
-if not key then
-print("Auto Walk: Auth key missing. Waiting...")
-task.wait(0.5)
-continue
-end
-if deducedNewBomb then
-task.wait(0.05)
 continue
 end
 local targetCell=nil
