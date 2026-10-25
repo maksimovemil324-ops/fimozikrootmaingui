@@ -9,7 +9,6 @@ local AutoWalkToggle,AutoFlagToggle,EspToggle,FlyToggle
 local espFolder=workspace:FindFirstChild("BotESPFolder")or Instance.new("Folder",workspace)
 espFolder.Name="BotESPFolder"
 local function notify(t,x)pcall(function()game:GetService("StarterGui"):SetCore("SendNotification",{Title=t,Text=x,Duration=3})end)end
-local function getSecretKey()return "BypassKey_1337" end
 local function hasServerFlag(p)if not p then return false end for _,c in ipairs(p:GetChildren())do if c:IsA("Model")then return true end end return false end
 local function checkFlagged(p)return localFlags[p]==true or deducedBombs[p]==true end
 local function checkBlocked(p)return localFlags[p]==true or deducedBombs[p]==true or hasServerFlag(p)end
