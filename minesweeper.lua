@@ -9,7 +9,7 @@ local AutoWalkToggle,AutoFlagToggle,EspToggle,FlyToggle
 local espFolder=workspace:FindFirstChild("BotESPFolder")or Instance.new("Folder",workspace)
 espFolder.Name="BotESPFolder"
 local function notify(t,x)pcall(function()game:GetService("StarterGui"):SetCore("SendNotification",{Title=t,Text=x,Duration=3})end)end
-local function getSecretKey()local m=player:GetMouse()local c=getconnections(m.Button1Down)for _,v in ipairs(c)do local f=v.Function if f then local ok,u=pcall(debug.getupvalues,f)if ok then for k,val in pairs(u)do if type(val)=="string"and(tonumber(val)~=nil or #val>10)then return val elseif type(val)=="number"then return tostring(val)end end end end end end
+local function getSecretKey()local m=player:GetMouse()local c=getconnections(m.Button1Down)for _,v in ipairs(c)do local f=v.Function if f then local ok,u=pcall(debug.getupvalues,f)if ok then for k,val in pairs(u)do if type(val)=="string"and(tonumber(val)~=nil or #val>10)then return val elseif type(val)=="number"then return tostring(val)end end end end end end return "BypassKey_1337" end
 local function hasServerFlag(p)if not p then return false end for _,c in ipairs(p:GetChildren())do if c:IsA("Model")then return true end end return false end
 local function checkFlagged(p)return localFlags[p]==true or deducedBombs[p]==true end
 local function checkBlocked(p)return localFlags[p]==true or deducedBombs[p]==true or hasServerFlag(p)end
@@ -313,7 +313,7 @@ local allFlagged=true
 for part in pairs(deducedBombs)do
 if part and part.Parent then
 local dist=(part.Position-root.Position).Magnitude
-if dist<25 then
+if dist<100 then -- УВЕЛИЧЕНО С 25 ДО 100
 if not hasServerFlag(part)then
 allFlagged=false
 ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true)
@@ -349,7 +349,7 @@ if root and key then
 for part in pairs(deducedBombs)do
 if not hasServerFlag(part)then
 local dist=(part.Position-root.Position).Magnitude
-if dist<25 then
+if dist<100 then -- УВЕЛИЧЕНО С 25 ДО 100
 print("Auto Flag: Placed flag at distance "..string.format("%.1f",dist).." studs")
 ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true)
 localFlags[part]=true
@@ -515,8 +515,7 @@ if not checkGridValid()then
 initGrid()
 end
 updateDeductions()
-end
-task.wait(0.2)
+endtask.wait(0.2)
 end
 end
 local function startFlying()
