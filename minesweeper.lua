@@ -317,7 +317,11 @@ local dist=(part.Position-root.Position).Magnitude
 if dist<100 then
 if not hasServerFlag(part)then
 allFlagged=false
-pcall(function() ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true) end)
+pcall(function() 
+    if ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("FlagEvents") and ReplicatedStorage.Events.FlagEvents:FindFirstChild("PlaceFlag") then
+        ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true) 
+    end
+end)
 localFlags[part]=true
 end
 end
@@ -352,7 +356,11 @@ if not hasServerFlag(part)then
 local dist=(part.Position-root.Position).Magnitude
 if dist<100 then
 print("Auto Flag: Placed flag at distance "..string.format("%.1f",dist).." studs")
-pcall(function() ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true) end)
+pcall(function() 
+    if ReplicatedStorage:FindFirstChild("Events") and ReplicatedStorage.Events:FindFirstChild("FlagEvents") and ReplicatedStorage.Events.FlagEvents:FindFirstChild("PlaceFlag") then
+        ReplicatedStorage.Events.FlagEvents.PlaceFlag:FireServer(part,key,true) 
+    end
+end)
 localFlags[part]=true
 end
 end
