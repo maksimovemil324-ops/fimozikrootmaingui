@@ -1,340 +1,415 @@
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Camera = workspace.CurrentCamera
-local LP = Players.LocalPlayer
+-- blockstrike.lua | FIMO HUB module | by Fimozikroot
+local Players=game:GetService("Players")
+local RunService=game:GetService("RunService")
+local UserInputService=game:GetService("UserInputService")
+local Lighting=game:GetService("Lighting")
+local Workspace=game:GetService("Workspace")
+local VirtualUser=game:GetService("VirtualUser")
 
-local S = {
-    Aimbot = false, FOV = 200, AIM_KEY = Enum.KeyCode.X, AimbotSmooth = 0.25, WallCheck = true,
-    ESP = false,
-    Bhop = false, BhopMode = "Hold Space", BhopSpeedBoost = 0, BhopDelay = 0,
-    NoRecoil = false, NoSpread = false,
-    HeadSize = false, HeadSizeValue = 3, HeadTeamCheck = true,
+local LocalPlayer=Players.LocalPlayer
+local Camera=Workspace.CurrentCamera
+
+local S={
+	Aimbot=false, AimbotFOV=120, AimbotSmooth=0.25, AimbotKey=Enum.KeyCode.X,
+	AimbotTeamCheck=true, AimbotWallCheck=true, AimbotPart="Head",
+	Triggerbot=false, TriggerbotDelay=0.05,
+	ESP=false, ESPName=true, ESPHealth=true, ESPDistance=true, ESPTeamColor=true,
+	WorldESP=false, WorldESPColor=Color3.fromRGB(255,220,80),
+	Speed=false, SpeedVal=80,
+	Jump=false, JumpVal=200,
+	Fly=false, FlySpeed=100,
+	Noclip=false,
+	Bhop=false,
+	NoRecoil=false, NoSpread=false,
+	Fullbright=false,
+	AntiAFK=false
 }
 
--- ================= ESP =================
-local EH = {}
-local function clearESP()
-    for m, d in pairs(EH) do
-        if d.hl and d.hl.Parent then d.hl:Destroy() end
-    end
-    EH = {}
+local Highlights={}
+local WorldHighlights={}
+local FlyBV,FlyBG
+local OrigSpeed,OrigJump
+local OrigAmbient,OrigBright,OrigOutdoor
+local AimKeyDown=false
+local TriggerCooldown=0
+local isMobile=UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+local function IsAlive(plr)
+	if not plr or not plr.Character then return false end
+	local h=plr.Character:FindFirstChildOfClass("Humanoid")
+	return h and h.Health>0
 end
-local function updateESP()
-    local v = {}
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character then
-            local h = p.Character:FindFirstChildOfClass("Humanoid")
-            if h and h.Health > 0 then
-                v[p.Character] = true
-                local hl = p.Character:FindFirstChild("FimoHH")
-                if not hl then
-                    hl = Instance.new("Highlight")
-                    hl.Name = "FimoHH"
-                    hl.Parent = p.Character
-                end
-                hl.Enabled = true
-                hl.FillColor = Color3.fromRGB(139,149,246)
-                hl.OutlineColor = Color3.new(1,1,1)
-                hl.FillTransparency = 0.4
-                hl.OutlineTransparency = 0.1
-                hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-                EH[p.Character] = {hl=hl}
-            end
-        end
-    end
-    for c, d in pairs(EH) do
-        if not v[c] then
-            if d.hl and d.hl.Parent then d.hl:Destroy() end
-            EH[c] = nil
-        end
-    end
+
+local function GetTeam(plr)
+	return plr.Team
 end
+
+local function GetRoot(plr)
+	if not plr.Character then return nil end
+	return plr.Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function GetPart(plr,partName)
+	if not plr.Character then return nil end
+	local part=plr.Character:FindFirstChild(partName)
+	if part and part:IsA("BasePart") then return part end
+	return plr.Character:FindFirstChild("HumanoidRootPart")
+end
+
+local function IsVisible(targetPart)
+	if not S.AimbotWallCheck then return true end
+	local origin=Camera.CFrame.Position
+	local dir=(targetPart.Position-origin)
+	local params=RaycastParams.new()
+	params.FilterType=Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances={LocalPlayer.Character,targetPart.Parent,Camera}
+	local result=Workspace:Raycast(origin,dir,params)
+	return result==nil or result.Instance:IsDescendantOf(targetPart.Parent)
+end
+
+local function GetTarget()
+	local closest,dist=nil,S.AimbotFOV
+	local center
+	if isMobile then
+		center=Vector2.new(Camera.ViewportSize.X/2,Camera.ViewportSize.Y/2)
+	else
+		center=Vector2.new(UserInputService:GetMouseLocation().X,UserInputService:GetMouseLocation().Y)
+	end
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if plr~=LocalPlayer and IsAlive(plr) then
+			if not(S.AimbotTeamCheck and GetTeam(plr)==GetTeam(LocalPlayer)) then
+				local part=GetPart(plr,S.AimbotPart)
+				if part and IsVisible(part) then
+					local pos,onScreen=Camera:WorldToViewportPoint(part.Position)
+					if onScreen then
+						local d=(Vector2.new(pos.X,pos.Y)-center).Magnitude
+						if d<S.AimbotFOV and d<dist then
+							dist=d
+							closest=part
+						end
+					end
+				end
+			end
+		end
+	end
+	return closest
+end
+
+local function CreateHighlight(plr)
+	if Highlights[plr] then return end
+	local h=Instance.new("Highlight")
+	h.FillColor=S.ESPColor or Color3.fromRGB(255,60,60)
+	h.OutlineColor=S.ESPColor or Color3.fromRGB(255,60,60)
+	h.FillTransparency=0.5
+	h.OutlineTransparency=0
+	h.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
+	h.Parent=plr.Character
+
+	local billboard=Instance.new("BillboardGui")
+	billboard.Name="FimoESP"
+	billboard.Size=UDim2.new(0,200,0,60)
+	billboard.StudsOffset=Vector3.new(0,2.5,0)
+	billboard.AlwaysOnTop=true
+	billboard.Adornee=plr.Character:FindFirstChild("Head") or plr.Character:FindFirstChild("HumanoidRootPart")
+
+	local nameLabel=Instance.new("TextLabel",billboard)
+	nameLabel.Name="Name"
+	nameLabel.Size=UDim2.new(1,0,0,20)
+	nameLabel.BackgroundTransparency=1
+	nameLabel.TextColor3=Color3.fromRGB(255,60,60)
+	nameLabel.TextStrokeTransparency=0.5
+	nameLabel.Font=Enum.Font.GothamBold
+	nameLabel.TextSize=14
+	nameLabel.Text=plr.Name
+
+	local healthLabel=Instance.new("TextLabel",billboard)
+	healthLabel.Name="Health"
+	healthLabel.Size=UDim2.new(1,0,0,16)
+	healthLabel.Position=UDim2.new(0,0,0,20)
+	healthLabel.BackgroundTransparency=1
+	healthLabel.TextColor3=Color3.fromRGB(120,255,120)
+	healthLabel.TextStrokeTransparency=0.5
+	healthLabel.Font=Enum.Font.Gotham
+	healthLabel.TextSize=12
+
+	local distLabel=Instance.new("TextLabel",billboard)
+	distLabel.Name="Distance"
+	distLabel.Size=UDim2.new(1,0,0,16)
+	distLabel.Position=UDim2.new(0,0,0,36)
+	distLabel.BackgroundTransparency=1
+	distLabel.TextColor3=Color3.fromRGB(200,200,200)
+	distLabel.TextStrokeTransparency=0.5
+	distLabel.Font=Enum.Font.Gotham
+	distLabel.TextSize=12
+
+	billboard.Parent=plr.Character
+	Highlights[plr]={hl=h,bg=billboard}
+end
+
+local function RemoveHighlight(plr)
+	if Highlights[plr] then
+		if Highlights[plr].hl then Highlights[plr].hl:Destroy() end
+		if Highlights[plr].bg then Highlights[plr].bg:Destroy() end
+		Highlights[plr]=nil
+	end
+end
+
+local function UpdateESP()
+	for _,plr in ipairs(Players:GetPlayers()) do
+		if plr~=LocalPlayer and IsAlive(plr) then
+			if S.ESP then
+				CreateHighlight(plr)
+				local data=Highlights[plr]
+				if data then
+					local color=Color3.fromRGB(255,60,60)
+					if S.ESPTeamColor and plr.Team then color=plr.Team.TeamColor.Color end
+					data.hl.FillColor=color
+					data.hl.OutlineColor=color
+					local head=plr.Character:FindFirstChild("Head") or plr.Character:FindFirstChild("HumanoidRootPart")
+					if head then data.bg.Adornee=head end
+					local root=GetRoot(plr)
+					local hum=plr.Character:FindFirstChildOfClass("Humanoid")
+					if data.bg:FindFirstChild("Name") then
+						data.bg.Name.Text=plr.Name
+						data.bg.Name.Visible=S.ESPName
+						data.bg.Name.TextColor3=color
+					end
+					if data.bg:FindFirstChild("Health") and hum then
+						data.bg.Health.Text=math.floor(hum.Health).." / "..math.floor(hum.MaxHealth)
+						data.bg.Health.Visible=S.ESPHealth
+					end
+					if data.bg:FindFirstChild("Distance") and root then
+						data.bg.Distance.Text=math.floor((root.Position-Camera.CFrame.Position).Magnitude).."m"
+						data.bg.Distance.Visible=S.ESPDistance
+					end
+				end
+			else
+				RemoveHighlight(plr)
+			end
+		else
+			RemoveHighlight(plr)
+		end
+	end
+end
+
+local function UpdateWorldESP()
+	for obj,_ in pairs(WorldHighlights) do
+		if not obj.Parent then
+			if WorldHighlights[obj] then WorldHighlights[obj]:Destroy() end
+			WorldHighlights[obj]=nil
+		end
+	end
+	if not S.WorldESP then
+		for obj,hl in pairs(WorldHighlights) do hl:Destroy() WorldHighlights[obj]=nil end
+		return
+	end
+	local folders={"Drops","Weapons","Debris"}
+	for _,folderName in ipairs(folders) do
+		local folder=Workspace:FindFirstChild(folderName)
+		if folder then
+			for _,obj in ipairs(folder:GetChildren()) do
+				if not WorldHighlights[obj] then
+					local hl=Instance.new("Highlight")
+					hl.FillColor=S.WorldESPColor
+					hl.OutlineColor=S.WorldESPColor
+					hl.FillTransparency=0.4
+					hl.DepthMode=Enum.HighlightDepthMode.AlwaysOnTop
+					hl.Adornee=obj
+					hl.Parent=obj
+					WorldHighlights[obj]=hl
+				end
+			end
+		end
+	end
+end
+
+local function UpdateAimbot()
+	if not S.Aimbot then return end
+	if not AimKeyDown then return end
+	local target=GetTarget()
+	if not target then return end
+	local targetCFrame=CFrame.new(Camera.CFrame.Position,target.Position)
+	Camera.CFrame=Camera.CFrame:Lerp(targetCFrame,S.AimbotSmooth)
+end
+
+local function UpdateTriggerbot()
+	if not S.Triggerbot then return end
+	if tick()-TriggerCooldown<S.TriggerbotDelay then return end
+	local target=GetTarget()
+	if not target then return end
+	if IsVisible(target) then
+		TriggerCooldown=tick()
+		if mouse1click then
+			mouse1click()
+		else
+			VirtualUser:Button1Down(Vector2.new(0,0),Camera.CFrame)
+			task.wait(0.02)
+			VirtualUser:Button1Up(Vector2.new(0,0),Camera.CFrame)
+		end
+	end
+end
+
+local function UpdateSpeedJump()
+	local char=LocalPlayer.Character
+	if not char then return end
+	local hum=char:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	if not OrigSpeed then OrigSpeed=hum.WalkSpeed end
+	if not OrigJump then OrigJump=hum.JumpPower end
+	hum.WalkSpeed=S.Speed and S.SpeedVal or OrigSpeed
+	hum.UseJumpPower=true
+	hum.JumpPower=S.Jump and S.JumpVal or OrigJump
+end
+
+local function StartFly()
+	local char=LocalPlayer.Character
+	if not char then return end
+	local root=char:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	if FlyBV then FlyBV:Destroy() end
+	if FlyBG then FlyBG:Destroy() end
+	FlyBV=Instance.new("BodyVelocity",root)
+	FlyBV.MaxForce=Vector3.new(9e9,9e9,9e9)
+	FlyBV.Velocity=Vector3.zero
+	FlyBG=Instance.new("BodyGyro",root)
+	FlyBG.P=9e4
+	FlyBG.MaxTorque=Vector3.new(9e9,9e9,9e9)
+	FlyBG.CFrame=root.CFrame
+end
+
+local function StopFly()
+	if FlyBV then FlyBV:Destroy() FlyBV=nil end
+	if FlyBG then FlyBG:Destroy() FlyBG=nil end
+end
+
+local function UpdateFly()
+	if not S.Fly then
+		if FlyBV or FlyBG then StopFly() end
+		return
+	end
+	if not FlyBV or not FlyBG then StartFly() end
+	if not FlyBV or not FlyBG then return end
+	local move=Vector3.zero
+	local camCF=Camera.CFrame
+	if UserInputService:IsKeyDown(Enum.KeyCode.W) then move=move+camCF.LookVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.S) then move=move-camCF.LookVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.A) then move=move-camCF.RightVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.D) then move=move+camCF.RightVector end
+	if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move=move+Vector3.new(0,1,0) end
+	if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move=move-Vector3.new(0,1,0) end
+	if move.Magnitude>0 then move=move.Unit*S.FlySpeed end
+	FlyBV.Velocity=move
+	FlyBG.CFrame=camCF
+end
+
+local function UpdateNoclip()
+	if not S.Noclip then return end
+	local char=LocalPlayer.Character
+	if not char then return end
+	for _,part in ipairs(char:GetDescendants()) do
+		if part:IsA("BasePart") then part.CanCollide=false end
+	end
+end
+
+local function UpdateBhop()
+	if not S.Bhop then return end
+	local char=LocalPlayer.Character
+	if not char then return end
+	local hum=char:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	if UserInputService:IsKeyDown(Enum.KeyCode.Space) and hum.FloorMaterial~=Enum.Material.Air then
+		hum:ChangeState(Enum.HumanoidStateType.Jumping)
+	end
+end
+
+local function UpdateNoRecoilSpread()
+	if not S.NoRecoil and not S.NoSpread then return end
+	local char=LocalPlayer.Character
+	if not char then return end
+	local containers={char}
+	local backpack=LocalPlayer:FindFirstChild("Backpack")
+	if backpack then table.insert(containers,backpack) end
+	for _,container in ipairs(containers) do
+		for _,obj in ipairs(container:GetDescendants()) do
+			if obj:IsA("NumberValue") then
+				local n=string.lower(obj.Name)
+				if S.NoRecoil and (string.find(n,"recoil") or string.find(n,"kick")) then obj.Value=0 end
+				if S.NoSpread and string.find(n,"spread") then obj.Value=0 end
+			end
+		end
+	end
+end
+
+local function UpdateFullbright()
+	if not OrigAmbient then
+		OrigAmbient=Lighting.Ambient
+		OrigBright=Lighting.Brightness
+		OrigOutdoor=Lighting.OutdoorAmbient
+	end
+	if S.Fullbright then
+		Lighting.Ambient=Color3.fromRGB(200,200,200)
+		Lighting.Brightness=3
+		Lighting.OutdoorAmbient=Color3.fromRGB(200,200,200)
+		Lighting.ClockTime=14
+		Lighting.GlobalShadows=false
+	else
+		Lighting.Ambient=OrigAmbient
+		Lighting.Brightness=OrigBright
+		Lighting.OutdoorAmbient=OrigOutdoor
+	end
+end
+
 RunService.RenderStepped:Connect(function()
-    if S.ESP then updateESP() else if next(EH) then clearESP() end end
+	pcall(UpdateESP)
+	pcall(UpdateWorldESP)
+	pcall(UpdateAimbot)
+	pcall(UpdateTriggerbot)
+	pcall(UpdateSpeedJump)
+	pcall(UpdateFly)
+	pcall(UpdateNoclip)
+	pcall(UpdateBhop)
+	pcall(UpdateNoRecoilSpread)
+	pcall(UpdateFullbright)
 end)
 
--- ================= AIMBOT =================
-local AT = nil
-local LTS = 0
-local function getMousePos()
-    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-        return Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
-    end
-    return UserInputService:GetMouseLocation()
-end
-local function findTarget()
-    local cl, sh = nil, math.huge
-    local mp = getMousePos()
-    local fs = {}
-    for _, n in ipairs({"Characters","Players","Entities","Mobs","Enemies","NPCs"}) do
-        local f = workspace:FindFirstChild(n)
-        if f then table.insert(fs, f) end
-    end
-    local function ck(ob)
-        if not ob:IsA("Model") then return end
-        if Players:GetPlayerFromCharacter(ob) == LP then return end
-        if ob.Name == LP.Name then return end
-        if LP.Character and (ob == LP.Character or ob:IsDescendantOf(LP.Character)) then return end
-        local h = ob:FindFirstChildOfClass("Humanoid")
-        if h and h.Health <= 0 then return end
-        local t = ob:FindFirstChild("Head") or ob:FindFirstChild("HumanoidRootPart") or ob:FindFirstChild("UpperTorso") or ob:FindFirstChild("Torso")
-        if not t then return end
-        local ok = true
-        if S.WallCheck then
-            local r = Camera:GetPartsObscuringTarget({t.Position}, {LP.Character, ob, Camera})
-            if #r > 0 then ok = false end
-        end
-        if ok then
-            local sp, os = Camera:WorldToViewportPoint(t.Position)
-            if os then
-                local d = (Vector2.new(sp.X, sp.Y) - mp).Magnitude
-                if d <= S.FOV and d < sh then sh = d; cl = t end
-            end
-        end
-    end
-    for _, f in ipairs(fs) do
-        for _, ob in pairs(f:GetChildren()) do ck(ob) end
-    end
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= LP and p.Character then ck(p.Character) end
-    end
-    return cl
-end
-RunService.RenderStepped:Connect(function()
-    if not S.Aimbot then AT = nil; return end
-    local n = tick()
-    if n - LTS < 0.03 then return end
-    LTS = n
-    AT = findTarget()
-end)
-local AimDown = false
-UserInputService.InputBegan:Connect(function(i, gp) if gp then return end if i.KeyCode == S.AIM_KEY then AimDown = true end end)
-UserInputService.InputEnded:Connect(function(i) if i.KeyCode == S.AIM_KEY then AimDown = false end end)
-RunService:BindToRenderStep("FimoAimBS", Enum.RenderPriority.Camera.Value + 1, function()
-    if not S.Aimbot or not AimDown or not AT or not AT.Parent then return end
-    local cp = Camera.CFrame.Position
-    local gc = CFrame.new(cp, AT.Position)
-    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-        local nc = Camera.CFrame:Lerp(gc, S.AimbotSmooth or 0.25)
-        Camera.CFrame = CFrame.new(cp, cp + nc.LookVector)
-    else
-        Camera.CFrame = gc
-    end
+UserInputService.InputBegan:Connect(function(input,gpe)
+	if gpe then return end
+	if input.KeyCode==S.AimbotKey then AimKeyDown=true end
 end)
 
--- ================= BHOP =================
-local BLJ = 0
-local function doBhop()
-    local c = LP.Character
-    if not c then return end
-    local h = c:FindFirstChildOfClass("Humanoid")
-    if not h or h.Health <= 0 then return end
-    local hrp = c:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    if h.FloorMaterial == Enum.Material.Air then return end
-    local st = h:GetState()
-    if st == Enum.HumanoidStateType.Jumping or st == Enum.HumanoidStateType.Freefall or st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.Climbing or st == Enum.HumanoidStateType.Swimming then return end
-    local n = tick()
-    if n - BLJ < (S.BhopDelay or 0)/1000 + 0.01 then return end
-    BLJ = n
-    pcall(function() h:ChangeState(Enum.HumanoidStateType.Jumping) end)
-    pcall(function() h.Jump = true end)
-    pcall(function()
-        local jp = h.UseJumpPower and h.JumpPower or 50
-        if jp <= 0 then jp = 50 end
-        local v = hrp.AssemblyLinearVelocity
-        hrp.AssemblyLinearVelocity = Vector3.new(v.X, jp, v.Z)
-    end)
-end
-RunService.Heartbeat:Connect(function()
-    if not S.Bhop then return end
-    if S.BhopMode == "Hold Space" then
-        if not UserInputService:IsKeyDown(Enum.KeyCode.Space) then return end
-    end
-    doBhop()
-    if S.BhopSpeedBoost > 0 then
-        local c = LP.Character
-        if c then
-            local h = c:FindFirstChildOfClass("Humanoid")
-            local hrp = c:FindFirstChild("HumanoidRootPart")
-            if h and hrp and h.FloorMaterial == Enum.Material.Air then
-                local md = h.MoveDirection
-                if md.Magnitude > 0.05 then
-                    local b = (S.BhopSpeedBoost/100)*15
-                    local v = hrp.AssemblyLinearVelocity
-                    hrp.AssemblyLinearVelocity = Vector3.new(v.X + md.X*b*0.1, v.Y, v.Z + md.Z*b*0.1)
-                end
-            end
-        end
-    end
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode==S.AimbotKey then AimKeyDown=false end
 end)
 
--- ================= NO RECOIL / SPREAD =================
-local RT = {}
-local LRS = 0
-local function scanRecoil()
-    RT = {}
-    local c = LP.Character
-    if not c then return end
-    local bp = LP:FindFirstChildOfClass("Backpack")
-    if bp then
-        for _, t in pairs(bp:GetChildren()) do
-            if t:IsA("Tool") then
-                for _, d in pairs(t:GetDescendants()) do
-                    if d:IsA("NumberValue") and (d.Name:lower():find("recoil") or d.Name:lower():find("spread")) then
-                        table.insert(RT, d)
-                    end
-                end
-            end
-        end
-    end
-    for _, d in pairs(c:GetDescendants()) do
-        if d:IsA("NumberValue") and (d.Name:lower():find("recoil") or d.Name:lower():find("spread")) then
-            table.insert(RT, d)
-        end
-    end
-end
-RunService.RenderStepped:Connect(function()
-    if not (S.NoRecoil or S.NoSpread) then return end
-    local n = tick()
-    if n - LRS > 2 then
-        LRS = n
-        scanRecoil()
-    end
-    for _, o in ipairs(RT) do
-        if o and o.Parent then
-            local nm = o.Name:lower()
-            if S.NoRecoil and nm:find("recoil") then o.Value = 0 end
-            if S.NoSpread and nm:find("spread") then o.Value = 0 end
-        end
-    end
+LocalPlayer.Idled:Connect(function()
+	if S.AntiAFK then
+		VirtualUser:Button2Down(Vector2.new(0,0),Camera.CFrame)
+		task.wait(1)
+		VirtualUser:Button2Up(Vector2.new(0,0),Camera.CFrame)
+	end
 end)
 
--- ================= HEAD SIZE =================
-local HC = {}
-local function teamCheck(o)
-    if not S.HeadTeamCheck then return false end
-    local pl = Players:GetPlayerFromCharacter(o)
-    if not pl then return false end
-    if LP.Team and pl.Team and LP.Team == pl.Team then return true end
-    local mt = LP:GetAttribute("Team")
-    local tt = pl:GetAttribute("Team")
-    if mt and tt and mt == tt then return true end
-    return false
-end
-local function setHead(p, s)
-    if not p or not p.Parent then return end
-    if not HC[p] then HC[p] = {OS=p.Size, OT=p.Transparency, OC=p.CanCollide, OM=p.Massless} end
-    p.Size = Vector3.new(s,s,s)
-    p.Transparency = 0.75
-    p.CanCollide = false
-    p.Massless = true
-end
-local function resetHead(p)
-    if not p then return end
-    local c = HC[p]
-    if not c then return end
-    if p.Parent then
-        pcall(function()
-            p.Size = c.OS; p.Transparency = c.OT; p.CanCollide = c.OC; p.Massless = c.OM
-        end)
-    end
-    HC[p] = nil
-end
-RunService.RenderStepped:Connect(function()
-    if not S.HeadSize then
-        for p in pairs(HC) do resetHead(p) end
-        return
-    end
-    local s = math.clamp(S.HeadSizeValue or 3, 1, 5)
-    local fs = {}
-    for _, n in ipairs({"Characters","Players","Entities","Mobs","Enemies","NPCs"}) do
-        local f = workspace:FindFirstChild(n)
-        if f then table.insert(fs, f) end
-    end
-    local v = {}
-    for _, f in ipairs(fs) do
-        for _, o in pairs(f:GetChildren()) do
-            if o:IsA("Model") then
-                local iu = false
-                if Players:GetPlayerFromCharacter(o) == LP then iu = true end
-                if o.Name == LP.Name then iu = true end
-                if LP.Character and (o == LP.Character or o:IsDescendantOf(LP.Character)) then iu = true end
-                if teamCheck(o) then iu = true end
-                if not iu then
-                    local h = o:FindFirstChildOfClass("Humanoid")
-                    if not h or h.Health > 0 then
-                        local hd = o:FindFirstChild("Head")
-                        if hd and hd:IsA("BasePart") then
-                            setHead(hd, s)
-                            v[hd] = true
-                        end
-                    end
-                end
-            end
-        end
-    end
-    for p in pairs(HC) do
-        if not v[p] then resetHead(p) end
-    end
+LocalPlayer.CharacterAdded:Connect(function()
+	task.wait(1)
+	StopFly()
+	for plr in pairs(Highlights) do RemoveHighlight(plr) end
+	Highlights={}
+	OrigSpeed=nil
+	OrigJump=nil
 end)
 
--- ================= FOV CIRCLE =================
-local FC = Drawing.new("Circle")
-FC.Thickness = 2; FC.Filled = false; FC.Visible = false; FC.Color = Color3.fromRGB(139,149,246)
-RunService.RenderStepped:Connect(function()
-    if S.Aimbot then
-        FC.Visible = true
-        FC.Radius = S.FOV
-        if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-            FC.Position = Camera.ViewportSize / 2
-        else
-            FC.Position = UserInputService:GetMouseLocation()
-        end
-    else
-        FC.Visible = false
-    end
-end)
-
--- ================= UI (Fimo Hub) =================
-local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/maksimovemil324-ops/fimozikrootmaingui/refs/heads/main/source.lua", true))()
-local Window = Luna:CreateWindow({
-    Name = "FIMO HUB | Block Strike",
-    Subtitle = "by Fimozikroot | t.me/fimozikroot",
-    LogoID = "100217590927128",
-    LoadingEnabled = false,
-    ConfigSettings = { RootFolder = nil, ConfigFolder = "FimoHub" },
-    KeySystem = false,
-})
-Window:CreateHomeTab({ SupportedExecutors = {"Wave","Delta","Codex","Hydrogen","Solara","Macsploit","Real"}, DiscordInvite = "fimozikroot", Icon = 1 })
-
-local Combat = Window:CreateTab({ Name = "Combat", Icon = "gavel", ImageSource = "Material", ShowTitle = true })
-local Visuals = Window:CreateTab({ Name = "Visuals", Icon = "visibility", ImageSource = "Material", ShowTitle = true })
-local Client = Window:CreateTab({ Name = "Client", Icon = "settings", ImageSource = "Material", ShowTitle = true })
-
-local sA = Combat:CreateSection("Aimbot")
-sA:CreateToggle({Name = "Aimbot", CurrentValue = S.Aimbot, Callback = function(v) S.Aimbot = v end})
-sA:CreateToggle({Name = "Wall Check", CurrentValue = S.WallCheck, Callback = function(v) S.WallCheck = v end})
-sA:CreateSlider({Name = "FOV", Range = {40,600}, CurrentValue = S.FOV, Callback = function(v) S.FOV = v end})
-sA:CreateSlider({Name = "Smooth", Range = {1,10}, CurrentValue = 5, Callback = function(v) S.AimbotSmooth = v/10 end})
-
-local sH = Combat:CreateSection("Hitbox")
-sH:CreateToggle({Name = "Head Size", CurrentValue = S.HeadSize, Callback = function(v) S.HeadSize = v end})
-sH:CreateSlider({Name = "Size", Range = {1,5}, CurrentValue = S.HeadSizeValue, Callback = function(v) S.HeadSizeValue = v end})
-sH:CreateToggle({Name = "Team Check", CurrentValue = S.HeadTeamCheck, Callback = function(v) S.HeadTeamCheck = v end})
-
-local sW = Combat:CreateSection("Weapon Mods")
-sW:CreateToggle({Name = "No Recoil", CurrentValue = S.NoRecoil, Callback = function(v) S.NoRecoil = v end})
-sW:CreateToggle({Name = "No Spread", CurrentValue = S.NoSpread, Callback = function(v) S.NoSpread = v end})
-
-local sE = Visuals:CreateSection("ESP")
-sE:CreateToggle({Name = "ESP (Highlight)", CurrentValue = S.ESP, Callback = function(v) S.ESP = v; if not v then clearESP() end end})
-
-local sB = Visuals:CreateSection("Bunny Hop")
-sB:CreateToggle({Name = "Bunny Hop", CurrentValue = S.Bhop, Callback = function(v) S.Bhop = v end})
-sB:CreateDropdown({Name = "Mode", Options = {"Hold Space","Always"}, CurrentOption = S.BhopMode, Callback = function(v) S.BhopMode = v end})
-sB:CreateSlider({Name = "Boost %", Range = {0,100}, CurrentValue = S.BhopSpeedBoost, Callback = function(v) S.BhopSpeedBoost = v end})
-
-local sC = Client:CreateSection("Client")
-sC:CreateButton({Name = "Unload", Callback = function() Luna:Destroy() end})
+local FimoBlockStrike={}
+FimoBlockStrike.Settings=S
+FimoBlockStrike.Unload=function()
+	StopFly()
+	for plr in pairs(Highlights) do RemoveHighlight(plr) end
+	for obj,hl in pairs(WorldHighlights) do hl:Destroy() end
+	WorldHighlights={}
+	Highlights={}
+	if OrigAmbient then
+		Lighting.Ambient=OrigAmbient
+		Lighting.Brightness=OrigBright
+		Lighting.OutdoorAmbient=OrigOutdoor
+	end
+end
+return FimoBlockStrike
