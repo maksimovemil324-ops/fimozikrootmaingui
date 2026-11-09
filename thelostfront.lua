@@ -28,10 +28,8 @@ local function IsAlive(plr)
     return h and h.Health > 0
 end
 
--- ЗАЩИТА: Безопасная проверка на врага
 local function IsEnemy(plr)
     if plr == LocalPlayer then return false end
-    -- Если у игрока нет команды (nil), считаем его врагом, но НЕ крашим игру
     if LocalPlayer.Team and plr.Team then
         return LocalPlayer.Team ~= plr.Team
     end
@@ -256,5 +254,10 @@ LocalPlayer.CharacterAdded:Connect(function()
     task.wait(2)
     ApplyFPSBoost()
 end)
+
+-- Уведомление об успешной загрузке
+if Luna then
+    Luna:Notification({Title = "The Lost Front", Content = "Модуль чита успешно загружен!", Icon = "check_circle", ImageSource = "Material"})
+end
 
 return { Settings = S }
