@@ -25,10 +25,6 @@ local Window = Luna:CreateWindow({
 
 Window.Bind = Enum.KeyCode.K
 
-Window:CreateHomeTab({ SupportedExecutors = {"Wave","Delta","Codex","Hydrogen","Solara","Macsploit","Real"}, DiscordInvite = "fimozikroot", Icon = 1 })
-
-local SelectTab = Window:CreateTab({ Name = "Select Game", Icon = "games", ImageSource = "Material", ShowTitle = true })
-
 local BASE = "https://raw.githubusercontent.com/maksimovemil324-ops/fimozikrootmaingui/refs/heads/main/"
 
 local function LoadMode(mode)
@@ -37,17 +33,114 @@ local function LoadMode(mode)
         loadstring(game:HttpGet(url))()
     end)
     if not ok then
-        Luna:Notification({Title = "Error", Content = "Failed to load " .. mode .. ": " .. tostring(err), Icon = "error", ImageSource = "Material"})
+        Luna:Notification({Title = "Error", Content = "Failed to load " .. mode, Icon = "error", ImageSource = "Material"})
     end
 end
 
+-- ============ ВКЛАДКА SELECT GAME ============
+local SelectTab = Window:CreateTab({ Name = "Select Game", Icon = "games", ImageSource = "Material", ShowTitle = true })
+
 SelectTab:CreateButton({ Name = "Universal", Description = "Works in all games", Callback = function() LoadMode("universal") end })
 SelectTab:CreateButton({ Name = "Block Strike", Description = "ESP + Aimbot + Bhop", Callback = function() LoadMode("blockstrike") end })
+SelectTab:CreateButton({ Name = "The Lost Front", Description = "ESP + Aimbot + Godmode", Callback = function() LoadMode("thelostfront") end })
 SelectTab:CreateButton({ Name = "Rust Lite", Description = "Drops + Sleepers + Guards", Callback = function() LoadMode("rustlite") end })
 SelectTab:CreateButton({ Name = "UAV Strike", Description = "Drone ESP + Aimlock", Callback = function() LoadMode("uavstrike") end })
 SelectTab:CreateButton({ Name = "Minesweeper", Description = "Auto Solver & ESP", Callback = function() LoadMode("minesweeper") end })
 
--- ============ МОБИЛЬНАЯ КНОПКА (toggle) ============
+-- ============ ВКЛАДКА BLOCK STRIKE ============
+local BSTab = Window:CreateTab({ Name = "Block Strike", Icon = "crosshair", ImageSource = "Material", ShowTitle = true })
+local BS = nil
+
+local function LoadBS()
+    if BS then return BS end
+    local ok, result = pcall(function()
+        return loadstring(game:HttpGet(BASE .. "blockstrike.lua"))()
+    end)
+    if ok and result then
+        BS = result
+        Luna:Notification({Title = "Block Strike", Content = "Loaded", Icon = "check_circle", ImageSource = "Material"})
+    else
+        Luna:Notification({Title = "Error", Content = "Failed to load Block Strike", Icon = "error", ImageSource = "Material"})
+    end
+    return BS
+end
+
+local function SetBS(key, val)
+    local bs = LoadBS()
+    if bs then bs.Settings[key] = val end
+end
+
+local SecBSAim = BSTab:CreateSection("Aimbot")
+SecBSAim:CreateToggle({Name="Aimbot", CurrentValue=false, Callback=function(v) SetBS("Aimbot", v) end})
+SecBSAim:CreateSlider({Name="FOV", Range={40,600}, CurrentValue=120, Callback=function(v) SetBS("AimbotFOV", v) end})
+SecBSAim:CreateSlider({Name="Smooth", Range={1,100}, CurrentValue=25, Callback=function(v) SetBS("AimbotSmooth", v/100) end})
+SecBSAim:CreateToggle({Name="Team Check", CurrentValue=true, Callback=function(v) SetBS("AimbotTeamCheck", v) end})
+SecBSAim:CreateToggle({Name="Wall Check", CurrentValue=true, Callback=function(v) SetBS("AimbotWallCheck", v) end})
+SecBSAim:CreateDropdown({Name="Hit Part", Options={"Head","UpperTorso","HumanoidRootPart"}, CurrentOption={"Head"}, Callback=function(o) SetBS("AimbotPart", o[1]) end})
+
+local SecBSEsp = BSTab:CreateSection("ESP")
+SecBSEsp:CreateToggle({Name="ESP", CurrentValue=false, Callback=function(v) SetBS("ESP", v) end})
+SecBSEsp:CreateToggle({Name="Name", CurrentValue=true, Callback=function(v) SetBS("ESPName", v) end})
+SecBSEsp:CreateToggle({Name="Health", CurrentValue=true, Callback=function(v) SetBS("ESPHealth", v) end})
+SecBSEsp:CreateToggle({Name="Distance", CurrentValue=true, Callback=function(v) SetBS("ESPDistance", v) end})
+SecBSEsp:CreateToggle({Name="Team Color", CurrentValue=true, Callback=function(v) SetBS("ESPTeamColor", v) end})
+
+local SecBSMove = BSTab:CreateSection("Movement")
+SecBSMove:CreateToggle({Name="Speed", CurrentValue=false, Callback=function(v) SetBS("Speed", v) end})
+SecBSMove:CreateSlider({Name="Speed Value", Range={16,500}, CurrentValue=80, Callback=function(v) SetBS("SpeedVal", v) end})
+SecBSMove:CreateToggle({Name="Jump", CurrentValue=false, Callback=function(v) SetBS("Jump", v) end})
+SecBSMove:CreateSlider({Name="Jump Value", Range={50,800}, CurrentValue=200, Callback=function(v) SetBS("JumpVal", v) end})
+SecBSMove:CreateToggle({Name="Fly", CurrentValue=false, Callback=function(v) SetBS("Fly", v) end})
+SecBSMove:CreateSlider({Name="Fly Speed", Range={10,500}, CurrentValue=100, Callback=function(v) SetBS("FlySpeed", v) end})
+SecBSMove:CreateToggle({Name="Noclip", CurrentValue=false, Callback=function(v) SetBS("Noclip", v) end})
+SecBSMove:CreateToggle({Name="Bhop", CurrentValue=false, Callback=function(v) SetBS("Bhop", v) end})
+
+local SecBSMisc = BSTab:CreateSection("Misc")
+SecBSMisc:CreateToggle({Name="No Recoil", CurrentValue=false, Callback=function(v) SetBS("NoRecoil", v) end})
+SecBSMisc:CreateToggle({Name="No Spread", CurrentValue=false, Callback=function(v) SetBS("NoSpread", v) end})
+SecBSMisc:CreateToggle({Name="Fullbright", CurrentValue=false, Callback=function(v) SetBS("Fullbright", v) end})
+SecBSMisc:CreateToggle({Name="Anti-AFK", CurrentValue=false, Callback=function(v) SetBS("AntiAFK", v) end})
+
+-- ============ ВКЛАДКА THE LOST FRONT ============
+local TLFTab = Window:CreateTab({ Name = "The Lost Front", Icon = "shield", ImageSource = "Material", ShowTitle = true })
+local TLF = nil
+
+local function LoadTLF()
+    if TLF then return TLF end
+    local ok, result = pcall(function()
+        return loadstring(game:HttpGet(BASE .. "thelostfront.lua"))()
+    end)
+    if ok and result then
+        TLF = result
+        Luna:Notification({Title = "The Lost Front", Content = "Loaded", Icon = "check_circle", ImageSource = "Material"})
+    else
+        Luna:Notification({Title = "Error", Content = "Failed to load The Lost Front", Icon = "error", ImageSource = "Material"})
+    end
+    return TLF
+end
+
+local function SetTLF(key, val)
+    local mod = LoadTLF()
+    if mod and mod.HandleSetting then mod.HandleSetting(key, val) end
+end
+
+local SecTLFCombat = TLFTab:CreateSection("Combat")
+SecTLFCombat:CreateToggle({Name="Aimbot", CurrentValue=false, Callback=function(v) SetTLF("Aimbot", v) end})
+SecTLFCombat:CreateSlider({Name="FOV", Range={40,600}, CurrentValue=120, Callback=function(v) SetTLF("AimbotFOV", v) end})
+SecTLFCombat:CreateToggle({Name="Godmode", CurrentValue=false, Callback=function(v) SetTLF("Godmode", v) end})
+
+local SecTLFVisuals = TLFTab:CreateSection("Visuals")
+SecTLFVisuals:CreateToggle({Name="ESP", CurrentValue=false, Callback=function(v) SetTLF("ESP", v) end})
+SecTLFVisuals:CreateToggle({Name="No Fog / Sky", CurrentValue=false, Callback=function(v) SetTLF("NoFog", v) end})
+SecTLFVisuals:CreateToggle({Name="No Leaves", CurrentValue=false, Callback=function(v) SetTLF("NoLeaves", v) end})
+SecTLFVisuals:CreateToggle({Name="FPS Booster", CurrentValue=false, Callback=function(v) SetTLF("FPSBooster", v) end})
+
+local SecTLFMove = TLFTab:CreateSection("Movement")
+SecTLFMove:CreateToggle({Name="Speed", CurrentValue=false, Callback=function(v) SetTLF("Speed", v) end})
+SecTLFMove:CreateSlider({Name="Speed Value", Range={16,500}, CurrentValue=80, Callback=function(v) SetTLF("SpeedVal", v) end})
+SecTLFMove:CreateToggle({Name="Noclip", CurrentValue=false, Callback=function(v) SetTLF("Noclip", v) end})
+
+-- ============ МОБИЛЬНАЯ КНОПКА FIMO ============
 local function getLunaGUI()
     local parent = (gethui and gethui()) or CoreGui
     for _, obj in ipairs(parent:GetChildren()) do
@@ -60,7 +153,7 @@ local function getLunaGUI()
 end
 
 local function showMenu()
-    local gui, parent = getLunaGUI()
+    local gui = getLunaGUI()
     if not gui then return end
     local smart = gui:FindFirstChild("SmartWindow")
     if not smart then return end
@@ -109,7 +202,6 @@ if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
     s.Thickness = 2
     s.Transparency = 0.5
 
-    -- перетаскивание кнопки (чтобы не мешала)
     local dragging, dragStart, startPos
     btn.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.Touch then
@@ -130,7 +222,6 @@ if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
         end
     end)
 
-    -- toggle по клику
     btn.MouseButton1Click:Connect(function()
         if Window.State then
             hideMenu()
@@ -138,4 +229,4 @@ if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
             showMenu()
         end
     end)
-end
+end меин луа норм?
