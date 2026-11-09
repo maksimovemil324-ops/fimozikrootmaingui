@@ -27,6 +27,10 @@ Window.Bind = Enum.KeyCode.K
 
 local BASE = "https://raw.githubusercontent.com/maksimovemil324-ops/fimozikrootmaingui/refs/heads/main/"
 
+-- ============ ВКЛАДКА SELECT GAME ============
+local SelectTab = Window:CreateTab({ Name = "Select Game", Icon = "games", ImageSource = "Material", ShowTitle = true })
+local SelectSection = SelectTab:CreateSection("Games List")
+
 local function LoadMode(mode)
     local url = BASE .. mode .. ".lua"
     local ok, err = pcall(function()
@@ -37,19 +41,15 @@ local function LoadMode(mode)
     end
 end
 
--- ============ ВКЛАДКА SELECT GAME ============
--- Убрал иконки (Icon), чтобы не было ошибки ContentId expected, got nil
-local SelectTab = Window:CreateTab({ Name = "Select Game", ShowTitle = true })
-
-SelectTab:CreateButton({ Name = "Universal", Description = "Works in all games", Callback = function() LoadMode("universal") end })
-SelectTab:CreateButton({ Name = "Block Strike", Description = "ESP + Aimbot + Bhop", Callback = function() LoadMode("blockstrike") end })
-SelectTab:CreateButton({ Name = "The Lost Front", Description = "ESP + Aimbot + Godmode", Callback = function() LoadMode("thelostfront") end })
-SelectTab:CreateButton({ Name = "Rust Lite", Description = "Drops + Sleepers + Guards", Callback = function() LoadMode("rustlite") end })
-SelectTab:CreateButton({ Name = "UAV Strike", Description = "Drone ESP + Aimlock", Callback = function() LoadMode("uavstrike") end })
-SelectTab:CreateButton({ Name = "Minesweeper", Description = "Auto Solver & ESP", Callback = function() LoadMode("minesweeper") end })
+SelectSection:CreateButton({ Name = "Universal", Description = "Works in all games", Callback = function() LoadMode("universal") end })
+SelectSection:CreateButton({ Name = "Block Strike", Description = "ESP + Aimbot + Bhop", Callback = function() LoadMode("blockstrike") end })
+SelectSection:CreateButton({ Name = "The Lost Front", Description = "ESP + Aimbot + Godmode", Callback = function() LoadMode("thelostfront") end })
+SelectSection:CreateButton({ Name = "Rust Lite", Description = "Drops + Sleepers + Guards", Callback = function() LoadMode("rustlite") end })
+SelectSection:CreateButton({ Name = "UAV Strike", Description = "Drone ESP + Aimlock", Callback = function() LoadMode("uavstrike") end })
+SelectSection:CreateButton({ Name = "Minesweeper", Description = "Auto Solver & ESP", Callback = function() LoadMode("minesweeper") end })
 
 -- ============ ВКЛАДКА BLOCK STRIKE ============
-local BSTab = Window:CreateTab({ Name = "Block Strike", ShowTitle = true })
+local BSTab = Window:CreateTab({ Name = "Block Strike", Icon = "crosshair", ImageSource = "Material", ShowTitle = true })
 local BS = nil
 
 local function LoadBS()
@@ -96,7 +96,7 @@ SecBSMisc:CreateToggle({Name="No Recoil", CurrentValue=false, Callback=function(
 SecBSMisc:CreateToggle({Name="Fullbright", CurrentValue=false, Callback=function(v) SetBS("Fullbright", v) end})
 
 -- ============ ВКЛАДКА THE LOST FRONT ============
-local TLFTab = Window:CreateTab({ Name = "The Lost Front", ShowTitle = true })
+local TLFTab = Window:CreateTab({ Name = "The Lost Front", Icon = "shield", ImageSource = "Material", ShowTitle = true })
 local TLF = nil
 
 local function LoadTLF()
