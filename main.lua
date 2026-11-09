@@ -102,7 +102,7 @@ SecBSMisc:CreateToggle({Name="Fullbright", CurrentValue=false, Callback=function
 SecBSMisc:CreateToggle({Name="Anti-AFK", CurrentValue=false, Callback=function(v) SetBS("AntiAFK", v) end})
 
 -- ============ ВКЛАДКА THE LOST FRONT ============
-local TLFTab = Window:CreateTab({ Name = "The Lost Front", Icon = "shield", ImageSource = "Material", ShowTitle = true })
+local TLFTab = Window:CreateTab({ Name = "The Lost Front", Icon = "crosshair", ImageSource = "Material", ShowTitle = true })
 local TLF = nil
 
 local function LoadTLF()
