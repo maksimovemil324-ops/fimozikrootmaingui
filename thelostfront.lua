@@ -16,14 +16,14 @@ local S = {
     AimbotTeamCheck = true, AimbotPart = "Head",
     -- Movement
     Speed = false, SpeedVal = 80, Jump = false, JumpVal = 200,
-    Noclip = false, GodMode = false,
+    Noclip = false, Godmode = false, -- ТУТ ИСПРАВЛЕНО ПОД MAIN.LUA
     -- Visuals
-    NoFog = false, NoLeaves = false, SkyBox = false, FPSBoost = false
+    NoFog = false, NoLeaves = false, SkyBox = false, FPSBooster = false -- ТУТ ТОЖЕ
 }
 
 local Highlights = {}
 local AimKeyDown = false
-local OrigSpeed, OrigJump, OrigFogEnd, OrigFogStart, OrigFogColor, OrigAmbient, OrigBright, OrigSky
+local OrigSpeed, OrigJump, OrigFogEnd, OrigFogStart, OrigFogColor, OrigAmbient, OrigBright
 local HiddenLeaves = {}
 
 local function IsAlive(plr)
@@ -40,7 +40,6 @@ local function IsEnemy(plr)
     return true
 end
 
--- ================= ESP =================
 local function UpdateESP()
     for plr, data in pairs(Highlights) do
         if not IsAlive(plr) then
@@ -132,7 +131,6 @@ local function UpdateESP()
     end
 end
 
--- ================= Aimbot =================
 local function GetTarget()
     local closest, dist = nil, S.AimbotFOV
     local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
@@ -164,7 +162,6 @@ local function UpdateAimbot()
     end
 end
 
--- ================= Movement =================
 local function UpdateMovement()
     local char = LocalPlayer.Character
     if not char then return end
@@ -184,12 +181,11 @@ local function UpdateMovement()
         end
     end
 
-    if S.GodMode and hum.Health < hum.MaxHealth then
+    if S.Godmode and hum.Health < hum.MaxHealth then
         hum.Health = hum.MaxHealth
     end
 end
 
--- ================= Visuals =================
 local function UpdateVisuals()
     if not OrigFogEnd then
         OrigFogEnd, OrigFogStart, OrigFogColor = Lighting.FogEnd, Lighting.FogStart, Lighting.FogColor
@@ -210,12 +206,6 @@ local function UpdateVisuals()
         Lighting.Brightness = OrigBright
     end
 
-    if S.SkyBox then
-        if not OrigSky then OrigSky = Lighting:FindFirstChildOfClass("Sky") end
-        if OrigSky then OrigSky:Destroy() end
-        Lighting.FogColor = Color3.fromRGB(100, 50, 150)
-    end
-
     if S.NoLeaves then
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("BasePart") and (obj.Name:lower():find("leaf") or obj.Name:lower():find("leaves")) then
@@ -233,20 +223,18 @@ local function UpdateVisuals()
     end
 end
 
--- ================= FPS Boost =================
 local function ApplyFPSBoost()
-    if S.FPSBoost then
+    if S.FPSBooster then
         for _, v in ipairs(Workspace:GetDescendants()) do
             if v:IsA("ParticleEmitter") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
                 v.Enabled = false
             end
         end
-        settings().Rendering.QualityLevel = 1
+        pcall(function() settings().Rendering.QualityLevel = 1 end)
         Lighting.GlobalShadows = false
     end
 end
 
--- ================= Main Loop =================
 RunService.RenderStepped:Connect(function()
     pcall(UpdateESP)
     pcall(UpdateAimbot)
@@ -263,11 +251,12 @@ UserInputService.InputEnded:Connect(function(input)
     if input.KeyCode == S.AimbotKey then AimKeyDown = false end
 end)
 
--- Сброс при смерти
 LocalPlayer.CharacterAdded:Connect(function()
     OrigSpeed, OrigJump = nil, nil
     Highlights = {}
     HiddenLeaves = {}
+    task.wait(2)
+    ApplyFPSBoost()
 end)
 
 return { Settings = S }
