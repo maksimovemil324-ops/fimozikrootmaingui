@@ -8,17 +8,13 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 
 local S = {
-    -- ESP
     ESP = false, ESPTeam = false, ESPName = true, ESPHealth = true, ESPDistance = true,
     ESPColorEnemy = Color3.fromRGB(255, 0, 0), ESPColorTeam = Color3.fromRGB(0, 255, 0),
-    -- Aimbot
     Aimbot = false, AimbotFOV = 120, AimbotSmooth = 0.25, AimbotKey = Enum.KeyCode.X,
     AimbotTeamCheck = true, AimbotPart = "Head",
-    -- Movement
     Speed = false, SpeedVal = 80, Jump = false, JumpVal = 200,
-    Noclip = false, Godmode = false, -- ТУТ ИСПРАВЛЕНО ПОД MAIN.LUA
-    -- Visuals
-    NoFog = false, NoLeaves = false, SkyBox = false, FPSBooster = false -- ТУТ ТОЖЕ
+    Noclip = false, Godmode = false, 
+    NoFog = false, NoLeaves = false, SkyBox = false, FPSBooster = false 
 }
 
 local Highlights = {}
@@ -32,8 +28,10 @@ local function IsAlive(plr)
     return h and h.Health > 0
 end
 
+-- ЗАЩИТА: Безопасная проверка на врага
 local function IsEnemy(plr)
     if plr == LocalPlayer then return false end
+    -- Если у игрока нет команды (nil), считаем его врагом, но НЕ крашим игру
     if LocalPlayer.Team and plr.Team then
         return LocalPlayer.Team ~= plr.Team
     end
