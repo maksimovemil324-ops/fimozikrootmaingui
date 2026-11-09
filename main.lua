@@ -67,7 +67,7 @@ end
 
 local function SetBS(key, val)
     local bs = LoadBS()
-    if bs then bs.Settings[key] = val end
+    if bs and bs.Settings then bs.Settings[key] = val end
 end
 
 local SecBSAim = BSTab:CreateSection("Aimbot")
@@ -121,7 +121,7 @@ end
 
 local function SetTLF(key, val)
     local mod = LoadTLF()
-    if mod and mod.HandleSetting then mod.HandleSetting(key, val) end
+    if mod and mod.Settings then mod.Settings[key] = val end
 end
 
 local SecTLFCombat = TLFTab:CreateSection("Combat")
@@ -229,4 +229,4 @@ if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
             showMenu()
         end
     end)
-end меин луа норм?
+end
