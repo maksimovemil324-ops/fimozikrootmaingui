@@ -38,7 +38,8 @@ local function LoadMode(mode)
 end
 
 -- ============ ВКЛАДКА SELECT GAME ============
-local SelectTab = Window:CreateTab({ Name = "Select Game", Icon = "games", ImageSource = "Material", ShowTitle = true })
+-- Убрал иконки (Icon), чтобы не было ошибки ContentId expected, got nil
+local SelectTab = Window:CreateTab({ Name = "Select Game", ShowTitle = true })
 
 SelectTab:CreateButton({ Name = "Universal", Description = "Works in all games", Callback = function() LoadMode("universal") end })
 SelectTab:CreateButton({ Name = "Block Strike", Description = "ESP + Aimbot + Bhop", Callback = function() LoadMode("blockstrike") end })
@@ -48,7 +49,7 @@ SelectTab:CreateButton({ Name = "UAV Strike", Description = "Drone ESP + Aimlock
 SelectTab:CreateButton({ Name = "Minesweeper", Description = "Auto Solver & ESP", Callback = function() LoadMode("minesweeper") end })
 
 -- ============ ВКЛАДКА BLOCK STRIKE ============
-local BSTab = Window:CreateTab({ Name = "Block Strike", Icon = "crosshair", ImageSource = "Material", ShowTitle = true })
+local BSTab = Window:CreateTab({ Name = "Block Strike", ShowTitle = true })
 local BS = nil
 
 local function LoadBS()
@@ -76,33 +77,26 @@ SecBSAim:CreateSlider({Name="FOV", Range={40,600}, CurrentValue=120, Callback=fu
 SecBSAim:CreateSlider({Name="Smooth", Range={1,100}, CurrentValue=25, Callback=function(v) SetBS("AimbotSmooth", v/100) end})
 SecBSAim:CreateToggle({Name="Team Check", CurrentValue=true, Callback=function(v) SetBS("AimbotTeamCheck", v) end})
 SecBSAim:CreateToggle({Name="Wall Check", CurrentValue=true, Callback=function(v) SetBS("AimbotWallCheck", v) end})
-SecBSAim:CreateDropdown({Name="Hit Part", Options={"Head","UpperTorso","HumanoidRootPart"}, CurrentOption={"Head"}, Callback=function(o) SetBS("AimbotPart", o[1]) end})
 
 local SecBSEsp = BSTab:CreateSection("ESP")
 SecBSEsp:CreateToggle({Name="ESP", CurrentValue=false, Callback=function(v) SetBS("ESP", v) end})
 SecBSEsp:CreateToggle({Name="Name", CurrentValue=true, Callback=function(v) SetBS("ESPName", v) end})
 SecBSEsp:CreateToggle({Name="Health", CurrentValue=true, Callback=function(v) SetBS("ESPHealth", v) end})
 SecBSEsp:CreateToggle({Name="Distance", CurrentValue=true, Callback=function(v) SetBS("ESPDistance", v) end})
-SecBSEsp:CreateToggle({Name="Team Color", CurrentValue=true, Callback=function(v) SetBS("ESPTeamColor", v) end})
 
 local SecBSMove = BSTab:CreateSection("Movement")
 SecBSMove:CreateToggle({Name="Speed", CurrentValue=false, Callback=function(v) SetBS("Speed", v) end})
 SecBSMove:CreateSlider({Name="Speed Value", Range={16,500}, CurrentValue=80, Callback=function(v) SetBS("SpeedVal", v) end})
 SecBSMove:CreateToggle({Name="Jump", CurrentValue=false, Callback=function(v) SetBS("Jump", v) end})
 SecBSMove:CreateSlider({Name="Jump Value", Range={50,800}, CurrentValue=200, Callback=function(v) SetBS("JumpVal", v) end})
-SecBSMove:CreateToggle({Name="Fly", CurrentValue=false, Callback=function(v) SetBS("Fly", v) end})
-SecBSMove:CreateSlider({Name="Fly Speed", Range={10,500}, CurrentValue=100, Callback=function(v) SetBS("FlySpeed", v) end})
 SecBSMove:CreateToggle({Name="Noclip", CurrentValue=false, Callback=function(v) SetBS("Noclip", v) end})
-SecBSMove:CreateToggle({Name="Bhop", CurrentValue=false, Callback=function(v) SetBS("Bhop", v) end})
 
 local SecBSMisc = BSTab:CreateSection("Misc")
 SecBSMisc:CreateToggle({Name="No Recoil", CurrentValue=false, Callback=function(v) SetBS("NoRecoil", v) end})
-SecBSMisc:CreateToggle({Name="No Spread", CurrentValue=false, Callback=function(v) SetBS("NoSpread", v) end})
 SecBSMisc:CreateToggle({Name="Fullbright", CurrentValue=false, Callback=function(v) SetBS("Fullbright", v) end})
-SecBSMisc:CreateToggle({Name="Anti-AFK", CurrentValue=false, Callback=function(v) SetBS("AntiAFK", v) end})
 
 -- ============ ВКЛАДКА THE LOST FRONT ============
-local TLFTab = Window:CreateTab({ Name = "The Lost Front", Icon = "crosshair", ImageSource = "Material", ShowTitle = true })
+local TLFTab = Window:CreateTab({ Name = "The Lost Front", ShowTitle = true })
 local TLF = nil
 
 local function LoadTLF()
