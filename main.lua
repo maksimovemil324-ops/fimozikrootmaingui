@@ -1,5 +1,5 @@
 -- main.lua | FIMO HUB | by Fimozikroot | t.me/fimozikroot
--- Loader fixes: no duplicate window, real error output, module cache, key system fallback.
+-- Loader fixes: safe tab icons, no duplicate window, real error output, module cache, key system fallback.
 
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
@@ -91,9 +91,40 @@ end
 
 pcall(function() Window.Bind = Enum.KeyCode.K end)
 
+-- ============ SAFE TABS ============
+-- Library bug: unknown Material icon -> nil Image -> "Unable to assign property Image. ContentId expected, got nil"
+-- and Material icon URLs are plain http -> "Unable to send request".
+-- Fix: real asset ids with ImageSource = "Custom" (no map lookup, no http).
+local ICONS = { 6022668955, 6023565902, 6031265978, 6031229341, 6026568245, 6022860343, 6031215982, 6023426906 }
+local curIcon = 0
+
+local function stubSection()
+    local sec = {}
+    for _, m in ipairs({ "CreateToggle", "CreateSlider", "CreateButton", "CreateDropdown", "CreateInput",
+        "CreateKeybind", "CreateLabel", "CreateParagraph", "CreateColorPicker", "CreateSection" }) do
+        sec[m] = function() return sec end
+    end
+    return sec
+end
+
+local function makeTab(name)
+    curIcon = curIcon % #ICONS + 1
+    local id = ICONS[curIcon]
+    local ok, tab = pcall(function()
+        return Window:CreateTab({ Name = name, Icon = tostring(id), ImageSource = "Custom", ShowTitle = true })
+    end)
+    if ok and tab then return tab end
+    ok, tab = pcall(function()
+        return Window:CreateTab({ Name = name, Icon = tostring(ICONS[1]), ImageSource = "Custom", ShowTitle = true })
+    end)
+    if ok and tab then return tab end
+    warn("[FIMO] tab failed: " .. name)
+    return { CreateSection = stubSection }
+end
+
 local function notify(title, content)
     pcall(function()
-        Luna:Notification({ Title = title, Content = content, Icon = "info", ImageSource = "Material" })
+        Luna:Notification({ Title = title, Content = content, Icon = "6022668955", ImageSource = "Custom" })
     end)
 end
 
@@ -104,16 +135,14 @@ local Loading = {}
 local function LoadMode(mode)
     if Modules[mode] then return Modules[mode] end
     if Loading[mode] then return nil end
+    if not mode:match("^[%w_]+$") then return nil end
     Loading[mode] = true
 
-    local url = BASE .. mode .. ".lua"
-    if not mode:match("^[%w_]+$") then Loading[mode] = nil; return nil end
-
-    local src = httpGet(url)
+    local src = httpGet(BASE .. mode .. ".lua")
     if not src then
         Loading[mode] = nil
         notify("Load error", mode .. ": download failed")
-        warn("[FIMO] download failed: " .. url)
+        warn("[FIMO] download failed: " .. mode)
         return nil
     end
 
@@ -128,8 +157,9 @@ local function LoadMode(mode)
     local ok, res = pcall(fn)
     Loading[mode] = nil
     if not ok then
-        notify("Load error", mode .. ": runtime error (see console)")
-        warn("[FIMO] runtime error " .. mode .. ": " .. tostring(res))
+        local msg = tostring(res)
+        notify("Load error", mode .. ": " .. msg:sub(1, 80))
+        warn("[FIMO] runtime error " .. mode .. ": " .. msg)
         return nil
     end
 
@@ -138,7 +168,7 @@ local function LoadMode(mode)
 end
 
 -- ============ SELECT GAME ============
-local SelectTab = Window:CreateTab({ Name = "Select Game", Icon = "games", ImageSource = "Material", ShowTitle = true })
+local SelectTab = makeTab("Select Game")
 local SelectSection = SelectTab:CreateSection("All in one")
 local GameList = {
     { Mode = "universal", Name = "Universal", Desc = "Silent Aim + Rage + ESP" },
@@ -157,7 +187,7 @@ for _, g in ipairs(GameList) do
 end
 
 -- ============ BLOCK STRIKE TAB ============
-local BSTab = Window:CreateTab({ Name = "Block Strike", Icon = "crosshair", ImageSource = "Material", ShowTitle = true })
+local BSTab = makeTab("Block Strike")
 local function SetModule(mode, key, val)
     local mod = Modules[mode] or LoadMode(mode)
     if mod and mod.Settings then mod.Settings[key] = val end
@@ -188,7 +218,7 @@ SecBSMisc:CreateToggle({ Name = "No Recoil", CurrentValue = false, Callback = fu
 SecBSMisc:CreateToggle({ Name = "Fullbright", CurrentValue = false, Callback = function(v) SetModule("blockstrike", "Fullbright", v) end })
 
 -- ============ THE LOST FRONT TAB ============
-local TLFTab = Window:CreateTab({ Name = "The Lost Front", Icon = "shield", ImageSource = "Material", ShowTitle = true })
+local TLFTab = makeTab("The Lost Front")
 
 local SecTLFCombat = TLFTab:CreateSection("Combat")
 SecTLFCombat:CreateToggle({ Name = "Aimbot", CurrentValue = false, Callback = function(v) SetModule("thelostfront", "Aimbot", v) end })
@@ -206,7 +236,8 @@ SecTLFMove:CreateToggle({ Name = "Speed", CurrentValue = false, Callback = funct
 SecTLFMove:CreateSlider({ Name = "Speed Value", Range = { 16, 500 }, CurrentValue = 80, Callback = function(v) SetModule("thelostfront", "SpeedVal", v) end })
 SecTLFMove:CreateToggle({ Name = "Noclip", CurrentValue = false, Callback = function(v) SetModule("thelostfront", "Noclip", v) end })
 
-local ClientTab = Window:CreateTab({ Name = "Client", Icon = "settings", ImageSource = "Material", ShowTitle = true })
+-- ============ CLIENT TAB ============
+local ClientTab = makeTab("Client")
 local ClientSec = ClientTab:CreateSection("Hub")
 ClientSec:CreateButton({
     Name = "Reload modules",
@@ -218,15 +249,12 @@ ClientSec:CreateButton({
 ClientSec:CreateButton({
     Name = "Reopen menu (mobile)",
     Callback = function()
-        pcall(function() Window.State = true end)
         local parent = (gethui and gethui()) or CoreGui
         for _, obj in ipairs(parent:GetChildren()) do
             if obj.Name == "Luna UI" then
                 local smart = obj:FindFirstChild("SmartWindow")
-                if smart then
-                    smart.Visible = true
-                    pcall(function() Window.State = true end)
-                end
+                if smart then smart.Visible = true end
+                pcall(function() Window.State = true end)
             end
         end
     end,
@@ -297,8 +325,7 @@ if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
     btn.MouseButton1Click:Connect(function()
         local gui = getLunaGUI()
         local smart = gui and gui:FindFirstChild("SmartWindow")
-        local visible = smart and smart.Visible
-        setMenu(not visible)
+        setMenu(not (smart and smart.Visible))
     end)
 end
 
