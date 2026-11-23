@@ -245,7 +245,9 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ================= UI =================
-local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/maksimovemil324-ops/fimozikrootmaingui/refs/heads/main/source.lua", true))()
+local G = (getgenv and getgenv()) or _G
+local Luna = G.FimoLuna or loadstring(game:HttpGet("https://raw.githubusercontent.com/maksimovemil324-ops/fimozikrootmaingui/refs/heads/main/source.lua", true))()
+G.FimoLuna = Luna
 local Window = Luna:CreateWindow({
     Name = "FIMO HUB | Rust Lite",
     Subtitle = "by Fimozikroot | t.me/fimozikroot",
