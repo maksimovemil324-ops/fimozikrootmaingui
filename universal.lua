@@ -11,9 +11,8 @@ local VirtualUser = game:GetService("VirtualUser")
 local LP = Players.LocalPlayer
 local BASE = "https://raw.githubusercontent.com/maksimovemil324-ops/fimozikrootmaingui/refs/heads/main/"
 
--- ============ EXECUTOR SHIMS (safe on every executor) ============
+-- ============ EXECUTOR SHIMS ============
 local G = (getgenv and getgenv()) or _G
-local cloneref = cloneref or function(o) return o end
 local newcclosure = newcclosure or function(f) return f end
 local getrawmetatable = getrawmetatable or (debug and debug.getmetatable)
 local setreadonly = setreadonly or (make_writeable and function(t, v) if v then make_writeable(t) end return t end)
@@ -43,18 +42,15 @@ end
 local function getLuna()
     if G.FimoLuna then return G.FimoLuna end
     local src = httpGet(BASE .. "source.lua")
-    if not src then error("[FIMO] source.lua download failed") end
-    local fn = loadstring(src)
-    if not fn then error("[FIMO] source.lua compile failed (executor size limit?)") end
+    if not src then error("[FIMO] source.lua download failed (http blocked in this game?)") end
+    local fn, err = loadstring(src)
+    if not fn then error("[FIMO] source.lua compile failed: " .. tostring(err)) end
     local Luna = fn()
     G.FimoLuna = Luna
     return Luna
 end
 
--- old instance cleanup on reload
-if G.FimoUniversal and G.FimoUniversal.Unload then
-    pcall(G.FimoUniversal.Unload)
-end
+if G.FimoUniversal and G.FimoUniversal.Unload then pcall(G.FimoUniversal.Unload) end
 
 local Luna = getLuna()
 local Window = G.FimoWindow
@@ -69,11 +65,42 @@ if not Window then
     G.FimoWindow = Window
 end
 
+-- ============ SAFE TAB CREATION ============
+-- Library bug: IconModule lookup returns nil -> "Unable to assign property Image. ContentId expected, got nil"
+-- and material icon URLs are plain http -> "Unable to send request".
+-- Fix: pass real asset ids with ImageSource = "Custom" (no lookup, no http request).
+local ICONS = { 6022668955, 6023565902, 6031265978, 6031229341, 6026568245, 6022860343, 6031215982, 6023426906 }
+local curIcon = 0
+
+local function stubSection()
+    local function noop() end
+    local sec = {}
+    for _, m in ipairs({ "CreateToggle", "CreateSlider", "CreateButton", "CreateDropdown", "CreateInput",
+        "CreateKeybind", "CreateLabel", "CreateParagraph", "CreateColorPicker", "CreateSection" }) do
+        sec[m] = function() return sec end
+    end
+    return sec
+end
+
+local function makeTab(name)
+    curIcon = curIcon % #ICONS + 1
+    local id = ICONS[curIcon]
+    local ok, tab = pcall(function()
+        return Window:CreateTab({ Name = name, Icon = tostring(id), ImageSource = "Custom", ShowTitle = true })
+    end)
+    if ok and tab then return tab end
+    ok, tab = pcall(function()
+        return Window:CreateTab({ Name = name, Icon = tostring(ICONS[1]), ImageSource = "Custom", ShowTitle = true })
+    end)
+    if ok and tab then return tab end
+    return { CreateSection = stubSection }
+end
+
 local S = {
     -- combat
     SilentAim = false, SilentFOV = 200, SilentAlways = false, SilentKey = Enum.KeyCode.X,
     Aimbot = false, AimbotFOV = 150, AimbotSmooth = 0.25, AimbotAlways = false, AimbotKey = Enum.KeyCode.X,
-    Triggerbot = false, TriggerFOV = 14, TriggerDelay = 0.06,
+    Triggerbot = false, TriggerFOV = 14,
     TeamCheck = true, WallCheck = true, Wallbang = false,
     TargetPart = "Head", Priority = "FOV", Prediction = false, PredictionTime = 0.12,
     -- rage
@@ -90,38 +117,28 @@ local S = {
 }
 
 -- ============ HELPERS ============
-local function getCam()
-    return workspace.CurrentCamera
-end
-
-local function getChar()
-    return LP.Character
-end
-
+local function getCam() return workspace.CurrentCamera end
+local function getChar() return LP.Character end
 local function getHum()
     local c = getChar()
     return c and c:FindFirstChildOfClass("Humanoid")
 end
-
 local function getHRP()
     local c = getChar()
     if not c then return nil end
     return c:FindFirstChild("HumanoidRootPart") or c.PrimaryPart
 end
-
 local function isTeammate(plr)
     if not S.TeamCheck then return false end
     if not plr.Team or not LP.Team then return false end
     return plr.Team == LP.Team
 end
-
 local function alive(plr)
     local c = plr and plr.Character
     if not c then return false end
     local h = c:FindFirstChildOfClass("Humanoid")
     return h ~= nil and h.Health > 0
 end
-
 local function aimPart(plr)
     local c = plr.Character
     if not c then return nil end
@@ -132,7 +149,6 @@ local function aimPart(plr)
     end
     return c:FindFirstChild("HumanoidRootPart") or c:FindFirstChild("Head")
 end
-
 local function partVisible(part, char)
     if S.Wallbang or not S.WallCheck then return true end
     local cam = getCam()
@@ -143,16 +159,12 @@ local function partVisible(part, char)
     if ok and res and #res > 0 then return false end
     return true
 end
-
 local function screenCenter()
     local cam = getCam()
     return Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y / 2)
 end
-
 local function mouseCenter()
-    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-        return screenCenter()
-    end
+    if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then return screenCenter() end
     local p = UserInputService:GetMouseLocation()
     return Vector2.new(p.X, p.Y)
 end
@@ -172,7 +184,6 @@ local function findTarget(fov, useMouse)
     if not cam then return nil end
     local center = useMouse and mouseCenter() or screenCenter()
     local best, bestScore = nil, math.huge
-
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and alive(plr) and not isTeammate(plr) then
             local part = aimPart(plr)
@@ -201,7 +212,7 @@ local function findTarget(fov, useMouse)
     return best
 end
 
--- ============ INPUT STATE ============
+-- ============ INPUT ============
 local silentDown, aimDown = false, false
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
@@ -216,7 +227,6 @@ end)
 local function silentActive()
     return S.SilentAim and (S.SilentAlways or silentDown) and Target ~= nil
 end
-
 local function aimPos()
     if not Target or not Target.part or not Target.part.Parent then return nil end
     return predictedPos(Target.part)
@@ -274,7 +284,7 @@ local function installHooks()
 end
 installHooks()
 
--- ============ CLICK ============
+-- ============ CLICK / MOVEMENT ============
 local lastClick = 0
 local function click()
     if os.clock() - lastClick < S.AutoFireDelay then return end
@@ -291,7 +301,6 @@ local function click()
     end)
 end
 
--- ============ MOVEMENT FIXES ============
 -- BUGFIX: old version forced WalkSpeed/JumpPower every frame -> broke custom movement games.
 local cachedHum, cachedSpeed, cachedJump = nil, nil, nil
 local function syncMovement()
@@ -320,7 +329,6 @@ UserInputService.JumpRequest:Connect(function()
     if hum then pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end) end
 end)
 
--- noclip
 RunService.Stepped:Connect(function()
     if not S.Noclip then return end
     local char = getChar()
@@ -330,7 +338,6 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- fly
 local flyG, flyV
 local function startFly()
     local hrp = getHRP()
@@ -347,7 +354,6 @@ local function stopFly()
     if flyV then flyV:Destroy(); flyV = nil end
 end
 
--- ============ BUNNYHOP ============
 local function doBhop()
     if not S.Bhop then return end
     local hum = getHum()
@@ -356,7 +362,7 @@ local function doBhop()
     end
 end
 
--- ============ HITBOX / SPINBOT ============
+-- ============ HITBOX ============
 local hitboxOrig = {}
 local function clearHitbox()
     for part, size in pairs(hitboxOrig) do
@@ -364,7 +370,6 @@ local function clearHitbox()
     end
     hitboxOrig = {}
 end
-
 local function applyHitbox()
     if not S.Hitbox then return end
     for _, plr in ipairs(Players:GetPlayers()) do
@@ -372,21 +377,19 @@ local function applyHitbox()
             local part = plr.Character:FindFirstChild("Head") or plr.Character:FindFirstChild("HumanoidRootPart")
             if part then
                 if not hitboxOrig[part] then hitboxOrig[part] = part.Size end
-                local sz = S.HitboxSize
-                local ns = Vector3.new(sz, sz, sz)
+                local ns = Vector3.new(S.HitboxSize, S.HitboxSize, S.HitboxSize)
                 if part.Size ~= ns then pcall(function() part.Size = ns end) end
             end
         end
     end
 end
 
--- ============ ESP (Drawing fallback -> Highlight) ============
+-- ============ ESP ============
 local espDraw = {}
 local espHighlight = {}
-
 local function clearESP()
     for _, d in pairs(espDraw) do
-        pcall(function() d:Remove() end)
+        for _, obj in pairs(d) do pcall(function() obj:Remove() end) end
     end
     espDraw = {}
     for _, h in pairs(espHighlight) do
@@ -394,7 +397,6 @@ local function clearESP()
     end
     espHighlight = {}
 end
-
 local function newDrawing(class)
     if not Drawing then return nil end
     local ok, obj = pcall(function() return Drawing.new(class) end)
@@ -403,19 +405,23 @@ local function newDrawing(class)
 end
 
 local function updateESP()
+    local cam = getCam()
+    if not cam then return end
     for plr, set in pairs(espDraw) do
-        if not (plr.Parent and plr.Character and alive(plr)) then
+        if not (plr.Character and alive(plr)) then
             for _, d in pairs(set) do pcall(function() d:Remove() end) end
             espDraw[plr] = nil
+            local h = espHighlight[plr]
+            if h and h.Parent then pcall(function() h:Destroy() end) end
+            espHighlight[plr] = nil
         end
     end
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LP and alive(plr) and not isTeammate(plr) then
-            local cam = getCam()
             local char = plr.Character
             local head = char:FindFirstChild("Head") or char:FindFirstChild("HumanoidRootPart")
             local root = char:FindFirstChild("HumanoidRootPart") or head
-            if cam and head and root then
+            if head and root then
                 local set = espDraw[plr]
                 if not set then
                     set = {
@@ -436,7 +442,6 @@ local function updateESP()
                         espHighlight[plr] = h
                     end
                 end
-
                 local top = cam:WorldToViewportPoint(head.Position + Vector3.new(0, 1, 0))
                 local bottom = cam:WorldToViewportPoint(root.Position - Vector3.new(0, 2.5, 0))
                 local onScreen = top.Z > 0
@@ -444,10 +449,9 @@ local function updateESP()
                 local width = height * 0.55
                 local dist = (cam.CFrame.Position - root.Position).Magnitude
                 local hum = char:FindFirstChildOfClass("Humanoid")
-
                 if set.name then
                     set.name.Visible = onScreen and S.ESPName
-                    set.name.Text = plr.Name
+                    set.name.Text = hum and S.ESPHealth and string.format("%s [%d]", plr.Name, math.floor(hum.Health)) or plr.Name
                     set.name.Size = 14
                     set.name.Center = true
                     set.name.Outline = true
@@ -477,15 +481,11 @@ local function updateESP()
                     set.tracer.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
                     set.tracer.To = Vector2.new(top.X, top.Y + height / 2)
                 end
-                if hum and set.name and S.ESPHealth then
-                    set.name.Text = string.format("%s [%d]", plr.Name, math.floor(hum.Health))
-                end
             end
         end
     end
 end
 
--- ============ FOV CIRCLE ============
 local fovCircle = newDrawing("Circle")
 if fovCircle then
     fovCircle.Thickness = 1
@@ -503,11 +503,9 @@ RunService.RenderStepped:Connect(function(dt)
     local cam = getCam()
     if not cam then return end
 
-    -- movement
     syncMovement()
     if S.Bhop then doBhop() end
 
-    -- fly
     if S.Fly then
         if not flyG or not flyV then startFly() end
         if flyG and flyV then
@@ -526,7 +524,6 @@ RunService.RenderStepped:Connect(function(dt)
         stopFly()
     end
 
-    -- fullbright / fog
     if S.FullBright then
         Lighting.Brightness = 3
         Lighting.ClockTime = 14
@@ -536,19 +533,15 @@ RunService.RenderStepped:Connect(function(dt)
     end
     if S.NoFog then Lighting.FogEnd = 100000 end
 
-    -- targeting
     if S.SilentAim or S.Aimbot or S.AutoFire or S.Triggerbot then
-        local fov = math.max(S.SilentFOV, S.AimbotFOV)
-        Target = findTarget(fov, S.Aimbot)
+        Target = findTarget(math.max(S.SilentFOV, S.AimbotFOV), S.Aimbot)
     else
         Target = nil
     end
 
-    -- silent aim needs nothing visible; aimbot rotates camera
     if S.Aimbot and Target and (S.AimbotAlways or aimDown) then
         local p = predictedPos(Target.part)
-        local cp = cam.CFrame.Position
-        local wanted = CFrame.lookAt(cp, p)
+        local wanted = CFrame.lookAt(cam.CFrame.Position, p)
         if S.AimbotSmooth >= 1 then
             cam.CFrame = wanted
         else
@@ -556,7 +549,6 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 
-    -- spinbot / antiaim / desync
     local hrp = getHRP()
     if hrp then
         if S.Spinbot then
@@ -569,28 +561,19 @@ RunService.RenderStepped:Connect(function(dt)
         end
         if S.Desync then
             desyncFlip = not desyncFlip
-            local off = desyncFlip and Vector3.new(0, 0.4, 0) or Vector3.new(0, -0.4, 0)
-            hrp.CFrame = hrp.CFrame + off
+            hrp.CFrame = hrp.CFrame + (desyncFlip and Vector3.new(0, 0.4, 0) or Vector3.new(0, -0.4, 0))
         end
     end
 
-    -- autofire / triggerbot
     if (S.AutoFire and Target) or (S.Triggerbot and Target) then
-        local p = Target.pos
-        local sp = cam:WorldToViewportPoint(p)
-        local center = mouseCenter()
-        local px = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-        local limit = S.AutoFire and 9999 or S.TriggerFOV
-        if px <= limit then click() end
+        local sp = cam:WorldToViewportPoint(Target.pos)
+        local px = (Vector2.new(sp.X, sp.Y) - mouseCenter()).Magnitude
+        if px <= (S.AutoFire and 9999 or S.TriggerFOV) then click() end
     end
 
-    -- esp
     if S.ESP then updateESP() elseif next(espDraw) or next(espHighlight) then clearESP() end
-
-    -- hitbox
     if S.Hitbox then applyHitbox() elseif next(hitboxOrig) then clearHitbox() end
 
-    -- fov circle
     if fovCircle then
         local show = S.FOVCircle and (S.SilentAim or S.Aimbot)
         fovCircle.Visible = show
@@ -601,7 +584,6 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
--- ============ ANTI-AFK ============
 LP.Idled:Connect(function()
     if not S.AntiAFK then return end
     pcall(function()
@@ -612,11 +594,11 @@ LP.Idled:Connect(function()
 end)
 
 -- ============ UI ============
-local Combat = Window:CreateTab({ Name = "Silent", Icon = "crosshair", ImageSource = "Material", ShowTitle = true })
-local Rage = Window:CreateTab({ Name = "Rage", Icon = "local_fire_department", ImageSource = "Material", ShowTitle = true })
-local Visuals = Window:CreateTab({ Name = "Visuals U", Icon = "visibility", ImageSource = "Material", ShowTitle = true })
-local Movement = Window:CreateTab({ Name = "Move U", Icon = "run_circle", ImageSource = "Material", ShowTitle = true })
-local Client = Window:CreateTab({ Name = "Misc U", Icon = "settings", ImageSource = "Material", ShowTitle = true })
+local Combat = makeTab("Silent")
+local Rage = makeTab("Rage")
+local Visuals = makeTab("Visuals U")
+local Movement = makeTab("Move U")
+local Client = makeTab("Misc U")
 
 local secAim = Combat:CreateSection("Silent Aim")
 secAim:CreateToggle({ Name = "Silent Aim", CurrentValue = S.SilentAim, Callback = function(v) S.SilentAim = v end })
@@ -659,9 +641,9 @@ secEsp:CreateToggle({ Name = "Box", CurrentValue = S.ESPBox, Callback = function
 secEsp:CreateToggle({ Name = "Tracers", CurrentValue = S.Tracers, Callback = function(v) S.Tracers = v end })
 secEsp:CreateToggle({ Name = "FOV Circle", CurrentValue = S.FOVCircle, Callback = function(v) S.FOVCircle = v end })
 
-local secMiscVis = Visuals:CreateSection("World")
-secMiscVis:CreateToggle({ Name = "Full Bright", CurrentValue = S.FullBright, Callback = function(v) S.FullBright = v end })
-secMiscVis:CreateToggle({ Name = "No Fog", CurrentValue = S.NoFog, Callback = function(v) S.NoFog = v end })
+local secWorld = Visuals:CreateSection("World")
+secWorld:CreateToggle({ Name = "Full Bright", CurrentValue = S.FullBright, Callback = function(v) S.FullBright = v end })
+secWorld:CreateToggle({ Name = "No Fog", CurrentValue = S.NoFog, Callback = function(v) S.NoFog = v end })
 
 local secMove = Movement:CreateSection("Movement")
 secMove:CreateToggle({ Name = "Speed", CurrentValue = S.Speed, Callback = function(v) S.Speed = v; if not v then restoreMovement() end end })
